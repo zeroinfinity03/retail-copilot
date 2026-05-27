@@ -1359,6 +1359,89 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
     </div>
 
   </div>
+
+  <h3>Future: swap to <code>darts</code> (optional)</h3>
+
+  <p>
+    The agent currently calls <code>prophet</code> and <code>statsforecast</code>
+    directly &mdash; two libraries, two different APIs. The
+    <strong>darts</strong> library wraps both behind a uniform
+    <code>TimeSeries</code> object, so every model uses the same
+    <code>fit() / predict()</code> shape.
+  </p>
+
+  <p><strong>Code today &mdash; two libraries, two shapes:</strong></p>
+<pre class="code-snippet"><span class="com"># Prophet — uses a pandas DataFrame natively</span>
+<span class="kw">from</span> prophet <span class="kw">import</span> Prophet
+m = Prophet()
+m.add_country_holidays(country_name=<span class="str">"SE"</span>)
+m.fit(train_df)
+future = m.make_future_dataframe(periods=horizon, include_history=<span class="kw">False</span>)
+fc = m.predict(future)   <span class="com"># DataFrame with yhat, yhat_lower, yhat_upper</span>
+
+<span class="com"># AutoARIMA — uses statsforecast's long-format DataFrame (needs unique_id column)</span>
+<span class="kw">from</span> statsforecast <span class="kw">import</span> StatsForecast
+<span class="kw">from</span> statsforecast.models <span class="kw">import</span> AutoARIMA
+long_df = train_df.assign(unique_id=<span class="str">"series"</span>)[[<span class="str">"unique_id"</span>, <span class="str">"ds"</span>, <span class="str">"y"</span>]]
+sf = StatsForecast(models=[AutoARIMA(season_length=7)], freq=<span class="str">"D"</span>)
+sf.fit(long_df)
+fc = sf.predict(h=horizon, level=[95])</pre>
+
+  <p><strong>Same logic with <code>darts</code> &mdash; one shape, two models:</strong></p>
+<pre class="code-snippet"><span class="kw">from</span> darts <span class="kw">import</span> TimeSeries
+<span class="kw">from</span> darts.models <span class="kw">import</span> Prophet, AutoARIMA
+
+ts = TimeSeries.from_dataframe(train_df, <span class="str">"ds"</span>, <span class="str">"y"</span>, freq=<span class="str">"D"</span>)
+
+<span class="com"># Both models share the same fit/predict API</span>
+prophet_fc = Prophet(country_holidays=<span class="str">"SE"</span>).fit(ts).predict(horizon)
+arima_fc   = AutoARIMA(season_length=7).fit(ts).predict(horizon)</pre>
+
+  <p>
+    <strong>Naming note &mdash; <code>AutoARIMA</code>, not "SARIMA".</strong>
+    Darts (and statsforecast) name the class <code>AutoARIMA</code> because
+    its job is to <em>auto-select</em> the <code>(p, d, q, P, D, Q)</code>
+    orders by minimizing AIC. Set <code>season_length=7</code> and you get
+    SARIMA behavior (weekly seasonal ARIMA); omit it and you get plain ARIMA
+    (no seasonality). The HTML doc says "SARIMA" because that's what the
+    model functionally <em>is</em> in our configuration — but the class name
+    you'd import is <code>AutoARIMA</code>.
+  </p>
+
+  <p><strong>Benchmark &mdash; raw vs darts, identical setup:</strong></p>
+<pre>                       RAW           DARTS         DIFF
+Prophet            0.08s         0.07s         noise
+AutoARIMA          0.51s         0.50s         noise
+
+Prophet MAPE     12.33%        12.33%        0.000%
+AutoARIMA MAPE   13.50%        13.50%        0.000%</pre>
+
+  <p>
+    Identical forecasts, identical speed (both wrap the same engines, no
+    actual difference at runtime). So for the current two-model ensemble we
+    kept the direct calls — they're more transparent for debugging and
+    avoid the extra <code>quantile_timeseries(0.025)</code> step that darts
+    requires for confidence intervals.
+  </p>
+
+  <p><strong>When the switch pays off:</strong></p>
+  <ul>
+    <li><strong>Adding more model families</strong> &mdash; if we ensembled
+      NBEATS, RNN, LightGBM, etc. alongside Prophet and AutoARIMA, the
+      uniform <code>TimeSeries</code> API saves real code. Each new model
+      drops in with the same <code>fit() / predict()</code> shape.</li>
+    <li><strong>Built-in backtesting / cross-validation</strong> &mdash;
+      darts has <code>historical_forecasts()</code> and <code>backtest()</code>
+      out of the box. With raw libraries we'd write those helpers ourselves.</li>
+  </ul>
+
+  <p>
+    A drop-in darts version of <code>_fit_prophet</code> and
+    <code>_fit_autoarima</code> sits as a commented reference at the bottom
+    of <code>backend/agents/forecasting_agent.py</code>. Swap the two
+    functions with the commented versions and nothing else in the pipeline
+    changes.
+  </p>
 </div>
 
 
@@ -1737,52 +1820,6 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
   or your own Postgres container). The supervisor code does not change &mdash;
   only the checkpointer instantiation line. Same pattern as swapping DuckDB
   for BigQuery in production.
-</p>
-
-
-<h2>Future: swapping the forecasting stack to <code>darts</code> (optional)</h2>
-
-<p>
-  The forecasting agent today calls <code>prophet</code> and
-  <code>statsforecast</code> directly. We benchmarked the same fits via the
-  <strong>darts</strong> library (which wraps both engines behind a uniform
-  <code>TimeSeries</code> API) on real H&amp;M daily revenue (734 days,
-  warm-cache, 30-day holdout):
-</p>
-
-<pre>                       RAW           DARTS         DIFF
-Prophet            0.08s         0.07s         noise
-AutoARIMA          0.51s         0.50s         noise
-
-Prophet MAPE     12.33%        12.33%        0.000%
-AutoARIMA MAPE   13.50%        13.50%        0.000%</pre>
-
-<p>
-  <strong>Identical forecasts, identical speed.</strong> Darts isn't faster
-  or more accurate &mdash; it's the same engines underneath. So for the
-  current two-model ensemble (Prophet + AutoARIMA), we kept the direct
-  calls because they're more transparent and one line shorter (darts CI
-  extraction takes an extra <code>quantile_timeseries(0.025)</code> dance).
-</p>
-
-<p>
-  <strong>When the switch would pay off:</strong>
-</p>
-<ul>
-  <li><strong>Adding more model families</strong> &mdash; if we ensembled
-    NBEATS, RNN, LightGBM, etc. alongside Prophet and AutoARIMA, darts'
-    uniform API saves real code. With raw libraries each model has its own
-    fit/predict shape.</li>
-  <li><strong>Built-in backtesting / cross-validation</strong> &mdash;
-    darts has <code>historical_forecasts()</code> and <code>backtest()</code>
-    out of the box. With raw libraries we'd write these helpers ourselves.</li>
-</ul>
-
-<p>
-  A drop-in darts version of <code>_fit_prophet</code> and
-  <code>_fit_autoarima</code> sits as a commented reference at the bottom of
-  <code>backend/agents/forecasting_agent.py</code>. Swap the two functions
-  with the commented versions and nothing else in the pipeline changes.
 </p>
 
 
