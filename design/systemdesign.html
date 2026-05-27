@@ -1,0 +1,1696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>System Design</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 20px;
+    background: #fafafa;
+    color: #222;
+    line-height: 1.6;
+  }
+  h1 { color: #1a1a1a; border-bottom: 3px solid #4a90e2; padding-bottom: 10px; }
+  h2 { color: #2c3e50; margin-top: 40px; font-size: 22px; }
+  h3 { color: #34495e; margin-top: 24px; font-size: 17px; }
+
+  .scale-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin: 20px 0;
+  }
+  .scale-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    border-top: 4px solid;
+  }
+  .scale-card .num {
+    font-size: 28px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 4px 0;
+  }
+  .scale-card .label { font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: 0.06em; }
+  .scale-card .desc { font-size: 13px; color: #555; margin-top: 6px; }
+  .scale-card.c1 { border-top-color: #4a90e2; }
+  .scale-card.c2 { border-top-color: #9b59b6; }
+  .scale-card.c3 { border-top-color: #e67e22; }
+
+  .db-canvas {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: 20px 0;
+    position: relative;
+  }
+  .db-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 30px;
+    align-items: start;
+  }
+  .db-table {
+    background: #fff;
+    border: 2px solid #4a90e2;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .db-table.center { border-color: #e67e22; }
+  .db-table.right  { border-color: #9b59b6; }
+  .db-table h4 {
+    background: #4a90e2;
+    color: white;
+    padding: 10px 14px;
+    margin: 0;
+    font-size: 14px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .db-table.center h4 { background: #e67e22; }
+  .db-table.right  h4 { background: #9b59b6; }
+  .db-table .row-count {
+    padding: 8px 14px;
+    font-size: 12px;
+    color: #555;
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .db-table ul { list-style: none; margin: 0; padding: 0; }
+  .db-table li {
+    padding: 6px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 12px;
+    font-family: "SF Mono", Menlo, monospace;
+    color: #333;
+  }
+  .db-table li.pk { background: #fff8e1; font-weight: 600; }
+  .db-table li.fk { color: #4a90e2; font-style: italic; }
+  .db-table li:last-child { border-bottom: 0; }
+  .relation {
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    margin-top: 12px;
+    font-style: italic;
+  }
+  .db-storage-note {
+    margin-top: 18px;
+    background: #eef6fb;
+    border-left: 4px solid #4a90e2;
+    padding: 12px 18px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .persona-card {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+    padding: 24px 28px;
+    border-radius: 10px;
+    margin: 20px 0;
+    box-shadow: 0 4px 12px rgba(74,144,226,0.25);
+  }
+  .persona-card h3 { color: white; margin-top: 0; }
+
+  .capability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .cap-card {
+    background: white;
+    padding: 16px 18px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-left: 4px solid;
+  }
+  .cap-card.internal { border-left-color: #4a90e2; }
+  .cap-card.external { border-left-color: #9b59b6; }
+  .cap-card.visual   { border-left-color: #e67e22; }
+  .cap-card.hybrid   { border-left-color: #27ae60; }
+  .cap-card h4 { margin: 0 0 6px 0; font-size: 14px; color: #2c3e50; }
+  .cap-card ul { padding-left: 18px; margin: 6px 0 0 0; }
+  .cap-card li { font-size: 13px; color: #555; margin: 4px 0; }
+
+  .flow-canvas {
+    background: white;
+    border-radius: 10px;
+    padding: 32px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: 20px 0;
+  }
+  .flow-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .flow-box {
+    padding: 14px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    min-width: 160px;
+  }
+  .flow-box small {
+    display: block;
+    font-weight: 400;
+    font-size: 11px;
+    opacity: 0.9;
+    margin-top: 3px;
+  }
+  .flow-box.user   { background: #34495e; border-radius: 30px; }
+  .flow-box.front  { background: #4a90e2; }
+  .flow-box.api    { background: #16a085; }
+  .flow-box.sup    { background: #2c3e50; min-width: 220px; }
+  .flow-box.spec   { background: #95a5a6; min-width: 130px; opacity: 0.85; }
+  .flow-arrow-down {
+    text-align: center;
+    font-size: 22px;
+    color: #4a90e2;
+    margin: 4px 0;
+  }
+
+  code { background: #f4f4f4; padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+
+  /* ========== Agent deep-dive sections ========== */
+  .agent-section {
+    background: white;
+    border-radius: 12px;
+    padding: 28px 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: 28px 0;
+    border-left: 6px solid;
+  }
+  .agent-section.supervisor   { border-left-color: #9b59b6; }
+  .agent-section.code         { border-left-color: #4a90e2; }
+  .agent-section.web          { border-left-color: #16a085; }
+  .agent-section.forecast     { border-left-color: #d35400; }
+  .agent-section.chart        { border-left-color: #8e44ad; }
+  .agent-section.synthesizer  { border-left-color: #2c3e50; }
+  .agent-section h2 {
+    margin-top: 0;
+    font-size: 22px;
+    color: #1a1a1a;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .agent-section h3 {
+    margin-top: 22px;
+    font-size: 12px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .agent-section > p:first-of-type {
+    color: #444;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-bottom: 22px;
+  }
+  .agent-tag {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 14px;
+    letter-spacing: 0.08em;
+  }
+  .agent-tag.supervisor   { background: #9b59b6; }
+  .agent-tag.code         { background: #4a90e2; }
+  .agent-tag.web          { background: #16a085; }
+  .agent-tag.forecast     { background: #d35400; }
+  .agent-tag.chart        { background: #8e44ad; }
+  .agent-tag.synthesizer  { background: #2c3e50; }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .agent-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 14px 18px;
+    border-left: 3px solid #ddd;
+  }
+  .agent-card h4 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+  .agent-card .content {
+    font-size: 13.5px;
+    color: #222;
+    line-height: 1.55;
+  }
+  .agent-features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .agent-feature {
+    background: #f8f9fa;
+    padding: 12px 14px;
+    border-radius: 8px;
+  }
+  .agent-feature .label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+  .agent-feature .desc {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.5;
+  }
+  .code-snippet {
+    background: #f6f8fa;
+    border-left: 3px solid #4a90e2;
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    overflow-x: auto;
+    color: #2c3e50;
+    line-height: 1.6;
+  }
+  .code-snippet .kw  { color: #c2185b; font-weight: 600; }
+  .code-snippet .str { color: #1e8449; }
+  .code-snippet .com { color: #6c757d; font-style: italic; }
+  .code-snippet .fn  { color: #1976d2; }
+  .plan-example {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 14px 0;
+  }
+  .plan-example .plan-label {
+    font-size: 11px;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .plan-example .plan-quote {
+    font-weight: 600;
+    margin-bottom: 18px;
+    font-size: 14px;
+    color: #222;
+  }
+  .plan-example .plan-content {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    background: white;
+    border-left: 3px solid #9b59b6;
+    padding: 12px 16px;
+    border-radius: 4px;
+  }
+  .agents-intro {
+    font-size: 15px;
+    color: #555;
+    margin: 30px 0 8px 0;
+  }
+
+  /* ========== OLAP columnar storage visualization ========== */
+  .olap-intro {
+    font-size: 13.5px;
+    color: #555;
+    margin: 8px 0 16px 0;
+    line-height: 1.6;
+  }
+  .col-table {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .col-table h5 {
+    margin: 0 0 10px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 14px;
+    color: #2c3e50;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .col-table h5 .row-count-tag {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: normal;
+    color: #888;
+  }
+  .col-strip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    border: 1px solid #c5d7f0;
+    border-radius: 6px;
+    flex-wrap: wrap;
+  }
+  .col-name {
+    font-family: "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    font-size: 12px;
+    color: #2c3e50;
+    min-width: 150px;
+    padding-right: 8px;
+  }
+  .col-val {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    color: #444;
+    white-space: nowrap;
+  }
+  .col-val.date { background: #ffe5d4; }
+  .col-val.id   { background: #d4ede4; }
+  .col-val.text { background: #e0e4f0; }
+  .col-val.num  { background: #fff4d4; }
+  .col-val.cat  { background: #f6d8dc; }
+  .olap-callout {
+    background: #eef6fb;
+    border-left: 4px solid #4a90e2;
+    padding: 10px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #2c3e50;
+    margin: 12px 0;
+  }
+  .olap-callout strong { color: #2c5d8b; }
+
+  /* ========== Step-by-step internal flow (per agent) ========== */
+  .flow-steps {
+    margin: 14px 0 4px 0;
+  }
+  .flow-step {
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+    border-left: 3px solid #4a90e2;
+    background: #f8f9fa;
+    border-radius: 4px;
+    margin: 10px 0;
+  }
+  .agent-section.supervisor   .flow-step { border-left-color: #9b59b6; }
+  .agent-section.code         .flow-step { border-left-color: #4a90e2; }
+  .agent-section.web          .flow-step { border-left-color: #16a085; }
+  .agent-section.forecast     .flow-step { border-left-color: #d35400; }
+  .agent-section.chart        .flow-step { border-left-color: #8e44ad; }
+  .agent-section.synthesizer  .flow-step { border-left-color: #2c3e50; }
+  .flow-step .num {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    color: white;
+    font-weight: 700;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #4a90e2;
+  }
+  .agent-section.supervisor   .flow-step .num { background: #9b59b6; }
+  .agent-section.code         .flow-step .num { background: #4a90e2; }
+  .agent-section.web          .flow-step .num { background: #16a085; }
+  .agent-section.forecast     .flow-step .num { background: #d35400; }
+  .agent-section.chart        .flow-step .num { background: #8e44ad; }
+  .agent-section.synthesizer  .flow-step .num { background: #2c3e50; }
+  .flow-step .body { flex: 1; min-width: 0; }
+  .flow-step .step-title {
+    font-weight: 700;
+    color: #2c3e50;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .flow-step .step-desc {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.55;
+  }
+  .flow-step pre {
+    background: #1e2733;
+    color: #e8eaed;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 8px 0 0 0;
+    font-size: 11.5px;
+    overflow-x: auto;
+    font-family: "SF Mono", Menlo, monospace;
+    line-height: 1.55;
+  }
+  .flow-step pre .kw  { color: #ff79c6; }
+  .flow-step pre .str { color: #f1fa8c; }
+  .flow-step pre .com { color: #6272a4; font-style: italic; }
+  .flow-step pre .fn  { color: #50fa7b; }
+</style>
+</head>
+<body>
+
+<h1>Retail Insights Copilot &mdash; System Design</h1>
+
+
+<h2>Introduction</h2>
+
+<p>
+A multi-agent assistant for retail analytics.
+</p>
+
+<p>
+A user sends a query in natural language. A supervisor agent decomposes
+the question into sub-tasks and dispatches them in parallel to specialist
+agents capable of <strong>market research</strong>,
+<strong>code execution</strong>, <strong>generating dashboards</strong>,
+and <strong>doing forecasting</strong>. Once the specialists return, a
+synthesizer composes their outputs into one grounded, citation-backed
+report.
+</p>
+
+
+<h2>High-level design</h2>
+
+<div style="background:white; border-radius:10px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin:20px 0;">
+  <svg viewBox="0 0 800 790" style="width:100%; max-width:800px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+      </marker>
+    </defs>
+
+    <!-- User question -->
+    <rect x="270" y="20" width="260" height="56" rx="14" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="46" text-anchor="middle" font-size="14" fill="#222">User asks question</text>
+    <text x="400" y="64" text-anchor="middle" font-size="12" fill="#222">(natural language)</text>
+
+    <line x1="400" y1="76" x2="400" y2="106" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+
+    <!-- Frontend -->
+    <rect x="290" y="108" width="220" height="44" rx="12" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="135" text-anchor="middle" font-size="14" font-weight="700" fill="#222">frontend</text>
+
+    <line x1="400" y1="152" x2="400" y2="202" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+
+    <!-- Supervisor -->
+    <ellipse cx="400" cy="234" rx="100" ry="32" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="240" text-anchor="middle" font-size="15" font-weight="700" fill="#222">supervisor</text>
+
+    <!-- Fan-out arrows to 3 parallel specialists -->
+    <line x1="340" y1="262" x2="170" y2="354" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="400" y1="266" x2="400" y2="354" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="460" y1="262" x2="630" y2="354" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+
+    <!-- 3 parallel specialist ovals (code / research / forecast) -->
+    <ellipse cx="170" cy="379" rx="70" ry="28" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="170" y="385" text-anchor="middle" font-size="14" font-weight="700" fill="#222">code</text>
+
+    <ellipse cx="400" cy="379" rx="70" ry="28" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="385" text-anchor="middle" font-size="14" font-weight="700" fill="#222">research</text>
+
+    <ellipse cx="630" cy="379" rx="70" ry="28" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="630" y="385" text-anchor="middle" font-size="14" font-weight="700" fill="#222">forecast</text>
+
+    <!-- Arrow from code down to visualization (sequential dependency) -->
+    <line x1="170" y1="407" x2="170" y2="514" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+
+    <!-- Visualization on its own row (runs after code, only when needed) -->
+    <ellipse cx="170" cy="542" rx="70" ry="28" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="170" y="548" text-anchor="middle" font-size="14" font-weight="700" fill="#222">visualization</text>
+
+    <!-- Converging arrows to synthesizer -->
+    <line x1="170" y1="570" x2="370" y2="652" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="400" y1="407" x2="400" y2="652" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="630" y1="407" x2="430" y2="652" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+
+    <!-- Synthesizer -->
+    <ellipse cx="400" cy="684" rx="100" ry="32" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="690" text-anchor="middle" font-size="15" font-weight="700" fill="#222">synthesizer</text>
+
+    <!-- Final report -->
+    <line x1="400" y1="716" x2="400" y2="744" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
+    <rect x="290" y="746" width="220" height="36" rx="12" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="400" y="769" text-anchor="middle" font-size="14" fill="#222">final report</text>
+  </svg>
+</div>
+
+
+<h2 id="agents">The Agents</h2>
+
+<p class="agents-intro">
+Six specialist agents make up the pipeline. Each has one focused
+responsibility, takes a typed input, and returns a structured dict.
+The supervisor orchestrates; the rest do the actual work.
+</p>
+
+
+<div class="agent-section supervisor" id="supervisor">
+  <span class="agent-tag supervisor">SUPERVISOR AGENT</span>
+  <h2>The orchestrator</h2>
+
+  <p>
+    The first agent the user's query reaches. Decides which specialists
+    to call and in what order. It does not fetch data, run code, or
+    write the final answer &mdash; only plans and dispatches. The
+    structured plan it produces drives every subsequent step.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        <code>user_query: str</code><br>
+        <em>e.g., "Project Ladieswear revenue and what the market expects"</em>
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        Populated <code>state</code> dict: <code>plan</code> + every
+        specialist's result + final narrative
+      </div>
+    </div>
+  </div>
+
+  <h3>The plan it produces</h3>
+  <div class="plan-example">
+    <div class="plan-label">User query</div>
+    <div class="plan-quote">&ldquo;Project Ladieswear revenue for the next 90 days and tell me what the market expects for womenswear in 2026.&rdquo;</div>
+
+    <div class="plan-label">Supervisor plan</div>
+    <div class="plan-content">
+      <strong>rationale:</strong> internal forecast and external market view are independent &mdash; fan them out in parallel<br>
+      <strong>steps:</strong><br>
+      &nbsp;&nbsp;1. <span style="color:#d35400; font-weight:700;">forecast</span> &mdash; Forecast Ladieswear daily revenue for the next 90 days<br>
+      &nbsp;&nbsp;2. <span style="color:#16a085; font-weight:700;">research</span> &mdash; Market outlook and expert projections for womenswear in 2026
+    </div>
+  </div>
+
+  <h3>Key components</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">Single planner call</div>
+      <div class="desc">One gpt-5-mini call returns a typed <code>Plan</code> with rationale + ordered steps.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Parallel dispatch</div>
+      <div class="desc">ThreadPool fires code / research / forecast in one superstep &mdash; visualization is sequential after code.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Worker-thread isolation</div>
+      <div class="desc"><code>asyncio.to_thread</code> keeps FastAPI's event loop free during the sync pipeline.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">No specialist work</div>
+      <div class="desc">Never queries DB or hits APIs itself &mdash; pure orchestration.</div>
+    </div>
+  </div>
+
+  <h3>Plan schema (Pydantic structured output)</h3>
+  <pre class="code-snippet"><span class="kw">class</span> PlanStep(BaseModel):
+    agent: Literal[<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>, <span class="str">"chart"</span>]
+    task: <span class="kw">str</span>
+
+<span class="kw">class</span> Plan(BaseModel):
+    rationale: <span class="kw">str</span>
+    steps: <span class="kw">list</span>[PlanStep]</pre>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title">Frontend &rarr; <code>main.py</code> via POST <code>/api/chat</code></div>
+        <div class="step-desc">User types a question in the chat UI. The frontend bundles the message history into JSON and posts it to the backend.</div>
+<pre><span class="com">// frontend/src/App.tsx</span>
+<span class="kw">await</span> fetch(<span class="str">"/api/chat"</span>, { method: <span class="str">"POST"</span>, body: JSON.stringify({ messages }) });</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title"><code>main.py</code> validates and dispatches to a worker thread</div>
+        <div class="step-desc">FastAPI validates the body against a Pydantic <code>ChatRequest</code> schema. Because the agent pipeline is synchronous, the handler ships the work onto a worker thread via <code>asyncio.to_thread</code>, freeing the event loop for other requests.</div>
+<pre><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+    user_query = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>][-1].content
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Supervisor initialises the shared <code>state</code> dict</div>
+        <div class="step-desc">First action inside <code>supervisor_P.run()</code> &mdash; allocate one slot per specialist, all starting as <code>None</code>. The dict is the shared bus the rest of the pipeline reads from and writes to.</div>
+<pre><span class="kw">def</span> <span class="fn">run</span>(user_query):
+    plan = make_plan(user_query)
+    state = {
+        <span class="str">"user_query"</span>: user_query,
+        <span class="str">"plan"</span>: plan.model_dump(),
+        <span class="str">"sql_results"</span>: <span class="kw">None</span>, <span class="str">"web_results"</span>: <span class="kw">None</span>,
+        <span class="str">"forecast_results"</span>: <span class="kw">None</span>, <span class="str">"chart_results"</span>: <span class="kw">None</span>,
+        <span class="str">"final_report"</span>: <span class="kw">None</span>,
+    }</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title"><code>make_plan()</code> &mdash; the planner LLM call</div>
+        <div class="step-desc">One structured-output call to <code>gpt-5-mini</code>. The supervisor system prompt is loaded from disk, the user query is appended, and OpenAI's structured-outputs feature forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text &mdash; only a valid <code>Plan</code>.</div>
+<pre>response = client.chat.completions.parse(
+    model=<span class="str">"gpt-5-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+    response_format=Plan,
+)
+<span class="kw">return</span> response.choices[0].message.parsed   <span class="com"># typed Plan object</span></pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="body">
+        <div class="step-title">Parallel dispatch &mdash; code / research / forecast in one superstep</div>
+        <div class="step-desc">The supervisor walks the plan, groups <code>code</code>, <code>research</code>, and <code>forecast</code> into a parallel batch (they're independent), and submits each to a <code>ThreadPoolExecutor</code>. As each thread finishes, its result is written into the matching <code>state</code> slot via <code>as_completed</code>. Loop exits only when all parallel futures are done.</div>
+<pre><span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
+    futures = {pool.submit(runners[a], task): a <span class="kw">for</span> a, task <span class="kw">in</span> parallel_jobs.items()}
+    <span class="kw">for</span> fut <span class="kw">in</span> as_completed(futures):
+        agent = futures[fut]
+        state[<span class="str">f"</span>{agent}_results<span class="str">"</span>] = fut.result()</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">6</div>
+      <div class="body">
+        <div class="step-title">Visualization agent runs sequentially (only if needed)</div>
+        <div class="step-desc">Visualization cannot run in the parallel batch because it consumes the code agent's rows. The supervisor fires it after the parallel batch finishes, passing the code agent's rows directly. If there are no rows or visualization isn't in the plan, this step is skipped.</div>
+<pre><span class="kw">if</span> needs_chart <span class="kw">and</span> sql_out.get(<span class="str">"rows"</span>):
+    state[<span class="str">"chart_results"</span>] = run_chart(
+        columns=sql_out[<span class="str">"columns"</span>],
+        rows=sql_out[<span class="str">"rows"</span>],
+        user_question=user_query,
+    )</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">7</div>
+      <div class="body">
+        <div class="step-title">Synthesizer composes the final narrative</div>
+        <div class="step-desc">All specialist outputs are now in <code>state</code>. The synthesizer reads every slice, calls one more LLM, and returns the grounded markdown narrative. The supervisor then returns the populated <code>state</code> dict to <code>main.py</code>, which packages it into a <code>ChatResponse</code> for the frontend.</div>
+<pre>synth_out = run_synthesizer(state)
+state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"final_report"</span>]
+<span class="kw">return</span> state   <span class="com"># back to main.py</span></pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="agent-section code" id="code-agent">
+  <span class="agent-tag code">CODE AGENT</span>
+  <h2>SQL generation &amp; sandboxed execution</h2>
+
+  <p>
+    Converts a natural-language analytics question into safe DuckDB SQL
+    and executes it inside a sandboxed environment. The LLM never
+    touches the database directly &mdash; Python is the only executor.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        <code>task: str</code><br>
+        <em>e.g., "Top 5 Ladieswear sellers by revenue, Q3 2020"</em>
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        <code>{sql, explanation, columns, rows, row_count, error}</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>The warehouse it queries</h3>
+  <p style="color:#444; font-size:14px; line-height:1.7; margin: 10px 0 16px 0;">
+    The warehouse is a single <strong>DuckDB</strong> file on local disk
+    (<code>backend/data/db/hm.duckdb</code>). DuckDB is the open-source,
+    embedded, columnar OLAP engine &mdash; the local equivalent of
+    <strong>BigQuery</strong>, <strong>Snowflake</strong>, or
+    <strong>Redshift</strong>. It speaks standard SQL, runs millions of rows
+    in under a second on a laptop, and ships as a single Python package &mdash;
+    no server, no cluster, no cloud bill. Same query patterns as the
+    cloud warehouses; just point the agent at a different connection string
+    to swap in production.
+  </p>
+  <div style="background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin: 14px 0;">
+    <svg viewBox="0 0 1000 330" style="width: 100%; max-width: 1000px; display: block; margin: 0 auto;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="db-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#4a90e2"/>
+        </marker>
+        <linearGradient id="grad-blue" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#5fa8e6"/>
+          <stop offset="100%" stop-color="#3a7cba"/>
+        </linearGradient>
+        <linearGradient id="grad-orange" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#f4a261"/>
+          <stop offset="100%" stop-color="#d35400"/>
+        </linearGradient>
+        <linearGradient id="grad-purple" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#a67ec0"/>
+          <stop offset="100%" stop-color="#9b59b6"/>
+        </linearGradient>
+      </defs>
+
+      <!-- customers cylinder -->
+      <g transform="translate(60, 60)">
+        <path d="M 10 0 L 10 160 A 90 18 0 0 0 190 160 L 190 0 Z" fill="url(#grad-blue)"/>
+        <ellipse cx="100" cy="0" rx="90" ry="18" fill="url(#grad-blue)" stroke="#2c5d8b" stroke-width="1.5"/>
+        <line x1="10"  y1="0" x2="10"  y2="160" stroke="#2c5d8b" stroke-width="1.5"/>
+        <line x1="190" y1="0" x2="190" y2="160" stroke="#2c5d8b" stroke-width="1.5"/>
+        <path d="M 10 160 A 90 18 0 0 0 190 160" fill="none" stroke="#2c5d8b" stroke-width="1.5"/>
+        <ellipse cx="100" cy="40"  rx="90" ry="18" fill="none" stroke="#2c5d8b" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="80"  rx="90" ry="18" fill="none" stroke="#2c5d8b" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="120" rx="90" ry="18" fill="none" stroke="#2c5d8b" stroke-width="1" opacity="0.3"/>
+        <text x="100" y="92" text-anchor="middle" font-family="'SF Mono', Menlo, monospace" font-weight="700" font-size="17" fill="white">customers</text>
+        <text x="100" y="200" text-anchor="middle" font-size="13" font-weight="700" fill="#2c3e50">1.37M rows</text>
+        <text x="100" y="222" text-anchor="middle" font-size="11" fill="#555">customer_id (PK), age, club_status</text>
+      </g>
+
+      <!-- transactions cylinder -->
+      <g transform="translate(400, 60)">
+        <path d="M 10 0 L 10 160 A 90 18 0 0 0 190 160 L 190 0 Z" fill="url(#grad-orange)"/>
+        <ellipse cx="100" cy="0" rx="90" ry="18" fill="url(#grad-orange)" stroke="#a04500" stroke-width="1.5"/>
+        <line x1="10"  y1="0" x2="10"  y2="160" stroke="#a04500" stroke-width="1.5"/>
+        <line x1="190" y1="0" x2="190" y2="160" stroke="#a04500" stroke-width="1.5"/>
+        <path d="M 10 160 A 90 18 0 0 0 190 160" fill="none" stroke="#a04500" stroke-width="1.5"/>
+        <ellipse cx="100" cy="40"  rx="90" ry="18" fill="none" stroke="#a04500" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="80"  rx="90" ry="18" fill="none" stroke="#a04500" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="120" rx="90" ry="18" fill="none" stroke="#a04500" stroke-width="1" opacity="0.3"/>
+        <text x="100" y="92" text-anchor="middle" font-family="'SF Mono', Menlo, monospace" font-weight="700" font-size="17" fill="white">transactions</text>
+        <text x="100" y="200" text-anchor="middle" font-size="13" font-weight="700" fill="#2c3e50">31.7M rows</text>
+        <text x="100" y="222" text-anchor="middle" font-size="11" fill="#555">t_dat, price, channel + 2 FKs</text>
+      </g>
+
+      <!-- articles cylinder -->
+      <g transform="translate(740, 60)">
+        <path d="M 10 0 L 10 160 A 90 18 0 0 0 190 160 L 190 0 Z" fill="url(#grad-purple)"/>
+        <ellipse cx="100" cy="0" rx="90" ry="18" fill="url(#grad-purple)" stroke="#6f3d8a" stroke-width="1.5"/>
+        <line x1="10"  y1="0" x2="10"  y2="160" stroke="#6f3d8a" stroke-width="1.5"/>
+        <line x1="190" y1="0" x2="190" y2="160" stroke="#6f3d8a" stroke-width="1.5"/>
+        <path d="M 10 160 A 90 18 0 0 0 190 160" fill="none" stroke="#6f3d8a" stroke-width="1.5"/>
+        <ellipse cx="100" cy="40"  rx="90" ry="18" fill="none" stroke="#6f3d8a" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="80"  rx="90" ry="18" fill="none" stroke="#6f3d8a" stroke-width="1" opacity="0.3"/>
+        <ellipse cx="100" cy="120" rx="90" ry="18" fill="none" stroke="#6f3d8a" stroke-width="1" opacity="0.3"/>
+        <text x="100" y="92" text-anchor="middle" font-family="'SF Mono', Menlo, monospace" font-weight="700" font-size="17" fill="white">articles</text>
+        <text x="100" y="200" text-anchor="middle" font-size="13" font-weight="700" fill="#2c3e50">105K rows</text>
+        <text x="100" y="222" text-anchor="middle" font-size="11" fill="#555">article_id (PK), name, color, type</text>
+      </g>
+
+      <!-- FK arrows: transactions → customers AND transactions → articles -->
+      <line x1="410" y1="140" x2="260" y2="140" stroke="#4a90e2" stroke-width="2" marker-end="url(#db-arr)"/>
+      <text x="335" y="128" text-anchor="middle" font-size="11" fill="#4a90e2" font-family="'SF Mono', Menlo, monospace">customer_id FK</text>
+
+      <line x1="590" y1="140" x2="740" y2="140" stroke="#4a90e2" stroke-width="2" marker-end="url(#db-arr)"/>
+      <text x="665" y="128" text-anchor="middle" font-size="11" fill="#4a90e2" font-family="'SF Mono', Menlo, monospace">article_id FK</text>
+
+      <!-- caption -->
+      <text x="500" y="300" text-anchor="middle" font-size="12" fill="#666">
+        DuckDB &middot; columnar OLAP &middot; ~33M rows total &middot; read-only for the agent
+      </text>
+    </svg>
+  </div>
+
+  <h3>How data is laid out &mdash; columnar storage</h3>
+  <p class="olap-intro">
+    DuckDB stores each column separately on disk. Queries like
+    <code>SUM(price) GROUP BY t_dat</code> read only the
+    <code>price</code> and <code>t_dat</code> columns and skip the others
+    entirely &mdash; that's the 5&ndash;15&times; I/O win over row-based
+    storage when scanning a 33M-row table.
+  </p>
+
+  <div class="col-table">
+    <h5>transactions <span class="row-count-tag">31.7M rows &middot; sample</span></h5>
+    <div class="col-strip">
+      <span class="col-name">t_dat:</span>
+      <span class="col-val date">2018-09-20</span>
+      <span class="col-val date">2018-09-20</span>
+      <span class="col-val date">2018-09-20</span>
+      <span class="col-val date">2018-09-21</span>
+      <span class="col-val date">2018-09-21</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">customer_id:</span>
+      <span class="col-val id">cust_001</span>
+      <span class="col-val id">cust_001</span>
+      <span class="col-val id">cust_002</span>
+      <span class="col-val id">cust_003</span>
+      <span class="col-val id">cust_004</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">article_id:</span>
+      <span class="col-val id">art_663</span>
+      <span class="col-val id">art_541</span>
+      <span class="col-val id">art_505</span>
+      <span class="col-val id">art_663</span>
+      <span class="col-val id">art_541</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">price:</span>
+      <span class="col-val num">0.05</span>
+      <span class="col-val num">0.03</span>
+      <span class="col-val num">0.02</span>
+      <span class="col-val num">0.05</span>
+      <span class="col-val num">0.03</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">sales_channel_id:</span>
+      <span class="col-val cat">2</span>
+      <span class="col-val cat">2</span>
+      <span class="col-val cat">2</span>
+      <span class="col-val cat">1</span>
+      <span class="col-val cat">1</span>
+    </div>
+  </div>
+
+  <div class="col-table">
+    <h5>customers <span class="row-count-tag">1.37M rows &middot; sample</span></h5>
+    <div class="col-strip">
+      <span class="col-name">customer_id:</span>
+      <span class="col-val id">cust_001</span>
+      <span class="col-val id">cust_002</span>
+      <span class="col-val id">cust_003</span>
+      <span class="col-val id">cust_004</span>
+      <span class="col-val id">cust_005</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">age:</span>
+      <span class="col-val num">28</span>
+      <span class="col-val num">35</span>
+      <span class="col-val num">22</span>
+      <span class="col-val num">41</span>
+      <span class="col-val num">19</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">club_member_status:</span>
+      <span class="col-val cat">ACTIVE</span>
+      <span class="col-val cat">ACTIVE</span>
+      <span class="col-val cat">PRE-CREATE</span>
+      <span class="col-val cat">ACTIVE</span>
+      <span class="col-val cat">LEFT CLUB</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">fashion_news_freq:</span>
+      <span class="col-val cat">Regularly</span>
+      <span class="col-val cat">NONE</span>
+      <span class="col-val cat">Monthly</span>
+      <span class="col-val cat">NONE</span>
+      <span class="col-val cat">Regularly</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">postal_code:</span>
+      <span class="col-val text">7f2a8b&hellip;</span>
+      <span class="col-val text">8d1b3c&hellip;</span>
+      <span class="col-val text">5c3e9f&hellip;</span>
+      <span class="col-val text">9a4f2d&hellip;</span>
+      <span class="col-val text">2b7c5e&hellip;</span>
+    </div>
+  </div>
+
+  <div class="col-table">
+    <h5>articles <span class="row-count-tag">105K rows &middot; sample (key columns)</span></h5>
+    <div class="col-strip">
+      <span class="col-name">article_id:</span>
+      <span class="col-val id">art_001</span>
+      <span class="col-val id">art_002</span>
+      <span class="col-val id">art_003</span>
+      <span class="col-val id">art_004</span>
+      <span class="col-val id">art_005</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">prod_name:</span>
+      <span class="col-val text">Strap top</span>
+      <span class="col-val text">Vest top</span>
+      <span class="col-val text">T-shirt</span>
+      <span class="col-val text">Blouse</span>
+      <span class="col-val text">Cardigan</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">colour_group_name:</span>
+      <span class="col-val cat">Black</span>
+      <span class="col-val cat">Light Pink</span>
+      <span class="col-val cat">White</span>
+      <span class="col-val cat">Beige</span>
+      <span class="col-val cat">Navy</span>
+    </div>
+    <div class="col-strip">
+      <span class="col-name">index_name:</span>
+      <span class="col-val cat">Ladieswear</span>
+      <span class="col-val cat">Ladieswear</span>
+      <span class="col-val cat">Menswear</span>
+      <span class="col-val cat">Ladieswear</span>
+      <span class="col-val cat">Ladieswear</span>
+    </div>
+  </div>
+
+  <div class="olap-callout">
+    <strong>Best for:</strong> column-wide aggregations
+    (<code>SUM</code>, <code>AVG</code>, <code>COUNT</code>, <code>GROUP BY</code>)
+    across millions of rows.
+  </div>
+
+  <h3>Four safety layers</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">1. Keyword blocklist</div>
+      <div class="desc">DROP, DELETE, INSERT, UPDATE, ALTER etc. rejected pre-execution via padded matching (no false positives on column names like UPDATED_AT).</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">2. Read-only DuckDB</div>
+      <div class="desc">Connection opened with <code>read_only=True</code> &mdash; engine-level enforcement; writes fail at the engine.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">3. Row cap (1000)</div>
+      <div class="desc">Returned rows capped &mdash; protects memory and UI rendering.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">4. One-shot retry</div>
+      <div class="desc">If execution fails, error message fed back to LLM with one retry attempt.</div>
+    </div>
+  </div>
+
+  <h3>Structured output schema</h3>
+  <pre class="code-snippet"><span class="kw">class</span> SQLOutput(BaseModel):
+    sql: Optional[<span class="kw">str</span>]       <span class="com"># SELECT-only DuckDB query, or None if out of scope</span>
+    explanation: <span class="kw">str</span>          <span class="com"># one-line plain English summary</span></pre>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title">Supervisor sends a task &rarr; <code>generate_sql()</code> LLM call</div>
+        <div class="step-desc">A natural-language sub-task arrives (e.g., <em>"Top 5 Ladieswear sellers last quarter"</em>). The agent loads its system prompt, combines it with the task, and makes a single structured-output call that returns a typed <code>SQLOutput</code> object. The LLM never touches the database.</div>
+<pre>response = client.chat.completions.parse(
+    model=<span class="str">"gpt-5-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+    response_format=SQLOutput,
+)
+<span class="kw">return</span> response.choices[0].message.parsed</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title">If the LLM declines (<code>sql=None</code>) &rarr; early return</div>
+        <div class="step-desc">When the question is out of scope (e.g., asking for inventory levels the warehouse doesn't have), the LLM is allowed to return <code>sql=None</code> with an <code>explanation</code>. The agent skips DuckDB entirely and returns an empty result dict so the synthesizer can phrase a graceful "data not available" reply.</div>
+<pre><span class="kw">if</span> llm_output.sql <span class="kw">is</span> <span class="kw">None</span>:
+    <span class="kw">return</span> {<span class="str">"sql"</span>: <span class="kw">None</span>, <span class="str">"explanation"</span>: llm_output.explanation,
+            <span class="str">"columns"</span>: [], <span class="str">"rows"</span>: [], <span class="str">"row_count"</span>: 0, <span class="str">"error"</span>: <span class="kw">None</span>}</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Safety check + DuckDB execute</div>
+        <div class="step-desc">Before the SQL hits the engine, the keyword blocklist scans for write operations (DROP/UPDATE/INSERT/...) using padded matching so column names like <code>UPDATED_AT</code> don't false-trigger. DuckDB opens in <code>read_only=True</code> mode for defense in depth. On success, returned rows are capped at 1,000.</div>
+<pre>banned = contains_banned_keyword(sql)
+<span class="kw">if</span> banned: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: '"</span>{banned}<span class="str">"'"</span>, ...}
+
+con = duckdb.connect(str(DB_PATH), read_only=<span class="kw">True</span>)
+result_df = con.execute(sql).fetchdf()</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title">One-shot retry on execution failure</div>
+        <div class="step-desc">If DuckDB raises an exception (syntax error, missing column, type mismatch), the agent calls the LLM once more with the error message as feedback. The LLM gets a chance to self-correct. Maximum one retry; if it fails again or returns <code>sql=None</code>, the original error is preserved.</div>
+<pre><span class="kw">if</span> exec_result[<span class="str">"error"</span>] <span class="kw">and</span> MAX_RETRIES &gt; 0:
+    retry = generate_sql(task, error_context=exec_result[<span class="str">"error"</span>])
+    <span class="kw">if</span> retry.sql:
+        exec_result = execute_sql(retry.sql)
+        llm_output = retry</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="body">
+        <div class="step-title">Pack result and return to supervisor</div>
+        <div class="step-desc">The final dict combines the LLM's SQL + explanation with the execution result (columns, rows, row_count, error). Supervisor stores it as-is in <code>state["sql_results"]</code> &mdash; passed through to the chart agent and synthesizer downstream.</div>
+<pre><span class="kw">return</span> {
+    <span class="str">"sql"</span>: llm_output.sql,
+    <span class="str">"explanation"</span>: llm_output.explanation,
+    **exec_result,         <span class="com"># columns, rows, row_count, error</span>
+}</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="agent-section web" id="web-agent">
+  <span class="agent-tag web">RESEARCH AGENT</span>
+  <h2>Live market intelligence via Perplexity Sonar Pro</h2>
+
+  <p>
+    Competitor news, industry trends, pricing changes, consumer
+    sentiment. Sonar Pro internally expands queries, searches the web,
+    reads pages, and synthesizes a grounded answer with source citations.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        <code>task: str</code><br>
+        <em>e.g., "2026 fashion retail trends"</em>
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        <code>{answer, citations, search_queries_run, model, error}</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>Key components</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">OpenAI-compatible</div>
+      <div class="desc">Same OpenAI SDK, just <code>base_url=https://api.perplexity.ai</code>. No special library.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Search controls</div>
+      <div class="desc"><code>recency: "year"</code> + <code>context_size: "high"</code> for retail-relevant, deep-context results.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Black-box magic</div>
+      <div class="desc">Perplexity internally does sub-query expansion, parallel web search, page reading, and synthesis.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Citations via model_dump</div>
+      <div class="desc">Perplexity adds non-standard fields (citations, search_results) &mdash; accessed via <code>response.model_dump()</code>.</div>
+    </div>
+  </div>
+
+  <h3>API call (with search controls)</h3>
+  <pre class="code-snippet">_get_client().chat.completions.create(
+    model=<span class="str">"sonar-pro"</span>,
+    messages=messages,
+    extra_body={
+        <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
+        <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
+    },
+)</pre>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title">Build messages: system prompt + user task</div>
+        <div class="step-desc">The agent loads its system prompt from disk (which defines its role as an external market researcher) and appends the supervisor's sub-task as the user message. Standard OpenAI <code>messages</code> format because Sonar Pro is OpenAI-compatible.</div>
+<pre>messages = [
+    {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: load_system_prompt()},
+    {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: task},
+]</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title">Call Perplexity Sonar Pro (with search controls)</div>
+        <div class="step-desc">The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity. Two Perplexity-specific options go through <code>extra_body</code>: <code>search_context_size: "high"</code> for deeper page reading, and <code>search_recency_filter: "year"</code> to bias toward recent retail content. Inside Sonar Pro: query expansion, parallel web search, page reads, synthesis with citations. The whole call is wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Parse response &mdash; <code>model_dump()</code> for non-standard fields</div>
+        <div class="step-desc">Perplexity returns extra fields (<code>citations</code>, <code>search_results</code>, etc.) that the OpenAI SDK's typed model doesn't know about. <code>response.model_dump()</code> converts the Pydantic object into a plain dict so the agent can pull the answer text, citation URLs, and search-query count.</div>
+<pre>data = response.model_dump()
+answer = data[<span class="str">"choices"</span>][0][<span class="str">"message"</span>][<span class="str">"content"</span>]
+citations = data.get(<span class="str">"citations"</span>) <span class="kw">or</span> []
+num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="str">"num_search_queries"</span>, 0)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title">Return result dict to supervisor</div>
+        <div class="step-desc">The agent returns a consistent dict shape on both the happy path and the failure path &mdash; <code>answer</code>, <code>citations</code>, <code>search_queries_run</code>, <code>model</code>, <code>error</code>. Supervisor stores it in <code>state["web_results"]</code> and the synthesizer reads it later, embedding citation URLs inline in the final narrative.</div>
+<pre><span class="kw">return</span> {
+    <span class="str">"answer"</span>: answer,
+    <span class="str">"citations"</span>: citations,
+    <span class="str">"search_queries_run"</span>: num_queries,
+    <span class="str">"model"</span>: <span class="str">"sonar-pro"</span>,
+    <span class="str">"error"</span>: <span class="kw">None</span>,
+}</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="agent-section forecast" id="forecast-agent">
+  <span class="agent-tag forecast">FORECAST AGENT</span>
+  <h2>Prophet + SARIMA ensemble forecasting</h2>
+
+  <p>
+    Projects future revenue or unit volume from internal warehouse
+    history. Runs Prophet and SARIMA (AutoARIMA) side by side, scores
+    both on a 30-day holdout, then refits both on the full series and
+    takes an ensemble average.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        <code>task: str</code><br>
+        <em>e.g., "Project Ladieswear daily revenue for next 90 days"</em>
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        <code>{historical, prophet_forecast, sarima_forecast, ensemble_forecast, metrics, values_table, chart_html, ...}</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>The 7-step pipeline</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">1. LLM &rarr; ForecastSpec</div>
+      <div class="desc">Parses task into typed spec: sql_task, horizon_days, granularity, country_holidays, series_label.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">2. SQL fetch + validate</div>
+      <div class="desc">Calls code agent internally for daily history. Needs &ge; 90 days; auto-detects date + numeric columns.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">3. Holdout score (30 days)</div>
+      <div class="desc">Both models fit on train, predict holdout, compute MAPE. Winner tagged informationally.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">4. Refit on full + project</div>
+      <div class="desc">Both models refit on FULL data (no holdout), project user's horizon_days.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">5. Ensemble average</div>
+      <div class="desc"><code>yhat = (prophet + sarima) / 2</code>. Confidence band is the union of both bands.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">6. Values table</div>
+      <div class="desc">Downsampled side-by-side preview (first / mid / last 10 rows) for the synthesizer.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">7. Combined Plotly chart</div>
+      <div class="desc">Historical (solid black) + Prophet (dashed blue + ribbon) + SARIMA (dashed orange + ribbon) + ensemble (bold green).</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">&nbsp;</div>
+      <div class="desc" style="font-style:italic; color:#777;">SARIMA is implemented via <code>AutoARIMA(season_length=7)</code> &mdash; same model family, parameters auto-selected by AIC.</div>
+    </div>
+  </div>
+
+  <h3>ForecastSpec schema</h3>
+  <pre class="code-snippet"><span class="kw">class</span> ForecastSpec(BaseModel):
+    sql_task: <span class="kw">str</span>                                  <span class="com"># brief for the SQL agent</span>
+    horizon_days: <span class="kw">int</span>                              <span class="com"># 7 - 180</span>
+    granularity: Literal[<span class="str">"day"</span>, <span class="str">"week"</span>, <span class="str">"month"</span>]
+    country_holidays: Optional[<span class="kw">str</span>] = <span class="str">"SE"</span>     <span class="com"># Prophet holiday calendar</span>
+    series_label: <span class="kw">str</span>
+    explanation: <span class="kw">str</span></pre>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title"><code>make_forecast_spec()</code> &mdash; LLM parses the task into a typed <code>ForecastSpec</code></div>
+        <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title">Fetch historical series via the SQL agent + reshape + validate</div>
+        <div class="step-desc">The forecast agent calls <code>sql_agent.run(spec.sql_task)</code> internally &mdash; supervisor doesn't pass SQL data to it. The returned rows are auto-mapped into a pandas DataFrame with <code>ds</code> (date) and <code>y</code> (numeric) columns. If the series has fewer than 90 days, the agent short-circuits with an error.</div>
+<pre>sql_out = run_sql(spec.sql_task)
+df = _rows_to_dataframe(sql_out)
+<span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:   <span class="com"># 90 days minimum</span>
+    result[<span class="str">"error"</span>] = <span class="str">f"Series too short ..."</span>
+    <span class="kw">return</span> result</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Holdout score &mdash; Prophet and SARIMA on last 30 days</div>
+        <div class="step-desc">Both models fit on everything except the last 30 days, then predict the held-out 30 and report MAPE. The "winner" is tagged but both models continue forward &mdash; this score is for transparency, not selection.</div>
+<pre>train = df.iloc[:-30]; holdout = df.iloc[-30:]
+metrics[<span class="str">"prophet_mape"</span>] = _mape(holdout.y, fit_prophet(train, 30).yhat)
+metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(train, 30).yhat)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title">Refit BOTH models on the FULL series and project the horizon</div>
+        <div class="step-desc">The holdout was only for scoring. To produce the final forecast, each model is re-fit on the complete history (no holdout) and projects <code>horizon_days</code> into the future. Each returns a DataFrame with <code>(ds, yhat, yhat_lower, yhat_upper)</code>.</div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="body">
+        <div class="step-title">Compute ensemble &mdash; average of the two forecasts</div>
+        <div class="step-desc">Per day: <code>ensemble_yhat = (prophet_yhat + sarima_yhat) / 2</code>. The confidence band is the union of the two bands (min of lower bounds, max of upper bounds) &mdash; intentionally wider, reflecting model disagreement as uncertainty.</div>
+<pre>ensemble_fc = pd.DataFrame({
+    <span class="str">"ds"</span>:         prophet_fc[<span class="str">"ds"</span>],
+    <span class="str">"yhat"</span>:       (prophet_fc.yhat.values + sarima_fc.yhat.values) / 2,
+    <span class="str">"yhat_lower"</span>: np.minimum(prophet_fc.yhat_lower, sarima_fc.yhat_lower),
+    <span class="str">"yhat_upper"</span>: np.maximum(prophet_fc.yhat_upper, sarima_fc.yhat_upper),
+})</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">6</div>
+      <div class="body">
+        <div class="step-title">Build a downsampled values table for the synthesizer</div>
+        <div class="step-desc">Full forecast is ~90 days &times; 3 columns &mdash; too many tokens for the synthesizer's LLM call. The agent picks the first 10, middle 10, and last 10 rows: enough to skim trend without blowing the token budget.</div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">7</div>
+      <div class="body">
+        <div class="step-title">Build the combined Plotly chart</div>
+        <div class="step-desc">One Plotly figure with: historical line (solid black), Prophet forecast (dashed blue) + uncertainty ribbon, SARIMA forecast (dashed orange) + ribbon, and the ensemble (bold green) on top. Exported as self-contained HTML for the frontend iframe. Returned to the supervisor along with the values table, metrics, and all three forecasts.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="agent-section chart" id="chart-agent">
+  <span class="agent-tag chart">VISUALIZATION AGENT</span>
+  <h2>Plotly visualization from code agent rows</h2>
+
+  <p>
+    Sequential agent &mdash; runs after the code agent. Takes the rows
+    and the user's original question, picks the right chart type and
+    columns, and produces a self-contained Plotly HTML figure that the
+    frontend embeds in an iframe.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        <code>columns: list</code>, <code>rows: list[dict]</code>, <code>user_question: str</code>
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        <code>{chart_type, title, caption, figure_html, figure_json, error}</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>10 supported chart types</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">Comparison</div>
+      <div class="desc">bar, horizontal_bar &mdash; top-N rankings, grouped comparisons.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Time series</div>
+      <div class="desc">line, area &mdash; auto range slider when <code>is_time_series=True</code>.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Distribution</div>
+      <div class="desc">histogram, box, scatter &mdash; spread and outlier analysis.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">Composition</div>
+      <div class="desc">pie, treemap, funnel &mdash; parts-of-a-whole.</div>
+    </div>
+  </div>
+
+  <h3>3-stage pipeline</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">1. LLM &rarr; ChartSpec</div>
+      <div class="desc">Picks <code>chart_type</code> from a Literal of 10 types + column mappings (x, y, color, path, values).</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">2. Validate + retry</div>
+      <div class="desc">Column existence + per-chart-type required-field checks. One retry with error feedback.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">3. Render</div>
+      <div class="desc">One-line per type (<code>px.bar</code>, <code>px.treemap</code>, etc.). Output is self-contained HTML.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">&nbsp;</div>
+      <div class="desc" style="font-style:italic; color:#777;">All charts ship with <code>plotly.js</code> loaded from CDN &mdash; lightweight payload, no offline bundle.</div>
+    </div>
+  </div>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title">Empty-rows early return</div>
+        <div class="step-desc">If the upstream SQL returned no rows, the chart agent skips the LLM call entirely and returns a clear error dict. No point wasting tokens on data that doesn't exist.</div>
+<pre><span class="kw">if</span> <span class="kw">not</span> rows:
+    <span class="kw">return</span> {<span class="str">"chart_type"</span>: <span class="kw">None</span>, ..., <span class="str">"error"</span>: <span class="str">"No data to plot"</span>}</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title"><code>get_chart_spec()</code> &mdash; LLM picks the chart type and columns</div>
+        <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 10), the x/y column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
+<pre>response = client.chat.completions.parse(
+    model=<span class="str">"gpt-5-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+    response_format=ChartSpec,
+)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Validate the spec + retry once on failure</div>
+        <div class="step-desc">Two checks: every column the LLM picked must actually exist in <code>columns</code> (no hallucinations), and required-fields must match the chart type (e.g., treemap needs <code>path_columns</code> and <code>values_column</code>). If validation fails, the LLM is called again with the error message as feedback &mdash; one retry, then give up gracefully.</div>
+<pre>err = validate_spec(spec, columns)
+<span class="kw">if</span> err <span class="kw">and</span> MAX_RETRIES &gt; 0:
+    spec = get_chart_spec(columns, rows, user_question, error_context=err)
+    err = validate_spec(spec, columns)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title">Render the Plotly figure with the right one-liner</div>
+        <div class="step-desc">A switch on <code>chart_type</code> picks the right Plotly Express call: <code>px.bar</code>, <code>px.line</code>, <code>px.treemap</code>, etc. Time-series charts get an interactive range slider when <code>is_time_series=True</code>. Output is a self-contained HTML string (Plotly.js loaded from CDN) for the frontend iframe.</div>
+<pre><span class="kw">if</span> spec.chart_type == <span class="str">"bar"</span>:
+    fig = px.bar(data_frame=df, x=spec.x_column, y=spec.y_column, title=spec.title)
+<span class="kw">elif</span> spec.chart_type == <span class="str">"treemap"</span>:
+    fig = px.treemap(data_frame=df, path=spec.path_columns, values=spec.values_column, ...)
+<span class="com"># ... 8 more chart types</span>
+<span class="kw">if</span> spec.is_time_series:
+    fig.update_xaxes(rangeslider_visible=<span class="kw">True</span>)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">5</div>
+      <div class="body">
+        <div class="step-title">Pack the result dict and return to the supervisor</div>
+        <div class="step-desc">The agent returns <code>chart_type</code>, <code>title</code>, <code>caption</code>, the self-contained <code>figure_html</code> and <code>figure_json</code>, plus any <code>error</code>. The supervisor stores it in <code>state["chart_results"]</code>; <code>main.py</code> later pulls <code>figure_html</code> into the <code>ChatResponse</code> so the frontend can embed it.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="agent-section synthesizer" id="synthesizer-agent">
+  <span class="agent-tag synthesizer">SYNTHESIZER AGENT</span>
+  <h2>Composing the final briefing</h2>
+
+  <p>
+    The last agent in the pipeline. Reads every specialist's output and
+    composes a single grounded, citation-aware markdown narrative
+    &mdash; this is the text the frontend renders for the user.
+  </p>
+
+  <div class="agent-grid">
+    <div class="agent-card">
+      <h4>Input</h4>
+      <div class="content">
+        Full <code>state</code> dict &mdash; every specialist's result (or <code>None</code>).
+      </div>
+    </div>
+    <div class="agent-card">
+      <h4>Output</h4>
+      <div class="content">
+        <code>{final_report: markdown, error, skipped: bool}</code>
+      </div>
+    </div>
+  </div>
+
+  <h3>4-stage pipeline</h3>
+  <div class="agent-features">
+    <div class="agent-feature">
+      <div class="label">1. Smart-skip check</div>
+      <div class="desc">Trivial queries (single-row SQL, no other context) skip &mdash; frontend gets section-dump fallback.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">2. Per-specialist formatting</div>
+      <div class="desc">Each output sliced: SQL rows sampled, citations capped (6), forecast values downsampled. Token-controlled.</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">3. Single LLM call</div>
+      <div class="desc">One gpt-5-mini call returns free-form markdown text. No structured output (free-form prose).</div>
+    </div>
+    <div class="agent-feature">
+      <div class="label">4. Citation embedding</div>
+      <div class="desc">Web URLs embedded inline; chart referenced naturally; statistical jargon translated to plain English.</div>
+    </div>
+  </div>
+
+  <h3>Internal flow &mdash; step by step</h3>
+  <div class="flow-steps">
+
+    <div class="flow-step">
+      <div class="num">1</div>
+      <div class="body">
+        <div class="step-title">Smart-skip check &mdash; trivial queries don't need synthesis</div>
+        <div class="step-desc">Some queries don't need narrative wrapping &mdash; e.g., a single-row SQL count where the section dump already reads cleanly. The synthesizer's <code>should_skip_synthesis()</code> checks this. Forecast always needs narrative, so it never skips when a forecast is present.</div>
+<pre><span class="kw">if</span> should_skip_synthesis(state):
+    <span class="kw">return</span> {<span class="str">"final_report"</span>: <span class="kw">None</span>, <span class="str">"error"</span>: <span class="kw">None</span>, <span class="str">"skipped"</span>: <span class="kw">True</span>}</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">2</div>
+      <div class="body">
+        <div class="step-title">Build the user message &mdash; format each specialist's output</div>
+        <div class="step-desc">Every specialist's full output would blow the LLM's token budget (figure HTML alone is 50KB+). The synthesizer slims each one: SQL gets first 5 rows + row count, web gets the answer + first 6 citations, forecast gets the series label + MAPEs + 3 sample rows from the values table, chart gets just title + caption.</div>
+<pre>user_message = (
+    <span class="str">f"USER QUESTION: {</span>state[<span class="str">"user_query"</span>]<span class="str">}\n\n"</span>
+    <span class="str">f"SQL DATA:\n{</span>_format_sql_block(state[<span class="str">"sql_results"</span>])<span class="str">}\n\n"</span>
+    <span class="str">f"WEB RESEARCH:\n{</span>_format_web_block(state[<span class="str">"web_results"</span>])<span class="str">}\n\n"</span>
+    <span class="str">f"FORECAST:\n{</span>_format_forecast_block(state[<span class="str">"forecast_results"</span>])<span class="str">}\n\n"</span>
+    <span class="str">f"CHART:\n{</span>_format_chart_block(state[<span class="str">"chart_results"</span>])<span class="str">}\n"</span>
+)</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">3</div>
+      <div class="body">
+        <div class="step-title">Single LLM call &mdash; returns free-form markdown narrative</div>
+        <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, embed citations inline, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
+<pre>response = client.chat.completions.create(
+    model=<span class="str">"gpt-5-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+)
+final_report = response.choices[0].message.content</pre>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="num">4</div>
+      <div class="body">
+        <div class="step-title">Pack result and return to the supervisor</div>
+        <div class="step-desc">The result dict has three fields: <code>final_report</code> (markdown), <code>error</code>, <code>skipped</code> (bool). Supervisor stores them in <code>state["final_report"]</code>, <code>state["synthesizer_skipped"]</code>, <code>state["synthesizer_error"]</code>. <code>main.py</code> then sends the markdown to the frontend as the <code>text</code> field of <code>ChatResponse</code> &mdash; or, if synthesis was skipped/errored, it falls back to a section-dump format built from the raw specialist outputs.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<h2>Adding session-level memory (optional)</h2>
+
+<p>
+  The pipeline is stateless by default. <code>main.py</code> reads only the
+  latest user message and ignores the rest of the conversation, so follow-up
+  questions like &ldquo;now break that down by category&rdquo; cannot resolve
+  pronouns or references. To enable session memory (memory that lasts as long
+  as the browser tab is open), pass the full message history into the
+  supervisor as context. One small change in <code>main.py</code> is enough
+  &mdash; no agent needs to be modified.
+</p>
+
+<h3>Current code (stateless)</h3>
+<pre class="code-snippet"><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+    user_msgs = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>]
+    user_query = user_msgs[-1].content
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query)</pre>
+
+<h3>With session memory (one-place patch)</h3>
+<pre class="code-snippet"><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+    history = <span class="str">"\n"</span>.join(<span class="str">f"</span>{m.role.upper()}: {m.content}<span class="str">"</span> <span class="kw">for</span> m <span class="kw">in</span> req.messages[:-1])
+    current = req.messages[-1].content
+    combined = (
+        <span class="str">f"Conversation so far:\n</span>{history}<span class="str">\n\nCurrent question: </span>{current}<span class="str">"</span>
+        <span class="kw">if</span> history <span class="kw">else</span> current
+    )
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, combined)</pre>
+
+<p>
+  After this change, the supervisor sees the prior turns when it builds the
+  plan, so it can resolve references against the conversation. Memory lives
+  only inside the request payload &mdash; it lasts as long as the tab is open.
+  Closing the tab or refreshing the page clears it.
+</p>
+
+
+<h2>Long-term memory across sessions (LangGraph checkpointer)</h2>
+
+<p>
+  Session memory dies when the tab closes. For conversations that survive
+  across sessions, browser refreshes, and even server restarts, use LangGraph's
+  built-in checkpointer. The LangGraph supervisor variant <code>supervisor_L.py</code>
+  is already wired for this &mdash; adding the SQLite checkpointer is a small
+  change. Every plan, every specialist result, and every final report is
+  persisted per <code>thread_id</code> and auto-loaded on the next request for
+  that thread.
+</p>
+
+<h3>The change in supervisor_L.py</h3>
+<pre class="code-snippet"><span class="kw">from</span> langgraph.checkpoint.sqlite <span class="kw">import</span> SqliteSaver
+
+CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str">"db"</span> / <span class="str">"checkpoints.db"</span>
+
+<span class="kw">def</span> <span class="fn">build_graph</span>():
+    g = StateGraph(AgentState)
+    <span class="com"># ... existing node and edge setup ...</span>
+    checkpointer = SqliteSaver.from_conn_string(<span class="kw">str</span>(CHECKPOINT_DB))
+    <span class="kw">return</span> g.compile(checkpointer=checkpointer)
+
+<span class="kw">def</span> <span class="fn">run</span>(user_query: <span class="kw">str</span>, thread_id: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:
+    app = build_graph()
+    config = {<span class="str">"configurable"</span>: {<span class="str">"thread_id"</span>: thread_id}}
+    <span class="kw">return</span> app.invoke(initial_state, config=config)</pre>
+
+<h3>The change in main.py</h3>
+<pre class="code-snippet"><span class="kw">class</span> ChatRequest(BaseModel):
+    messages: <span class="kw">list</span>[Message]
+    thread_id: <span class="kw">str</span>   <span class="com"># NEW — sent by the frontend (localStorage UUID)</span>
+
+<span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+    user_query = req.messages[-1].content
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, req.thread_id)</pre>
+
+<p>
+  The frontend generates a UUID once on first load, stores it in
+  <code>localStorage</code>, and sends it with every request. From that point
+  on, the supervisor sees all prior state for the thread &mdash; prior plans,
+  prior SQL rows, prior final reports &mdash; and the planner can reference
+  them when building the next plan. Different users (different
+  <code>thread_id</code>s) have isolated memories.
+</p>
+
+<h3>Deployment story &mdash; no extra database server</h3>
+<p>
+  The checkpointer DB is just a SQLite file on the server's local disk &mdash;
+  the same storage model as <code>hm.duckdb</code>. SQLite is
+  <em>embedded</em>: no separate database server, no managed service, no extra
+  infra. It ships as a Python package (<code>pip install langgraph-checkpoint-sqlite</code>)
+  that writes to whatever file path you give it. On deployment, the
+  <code>checkpoints.db</code> file lives alongside <code>hm.duckdb</code> in
+  <code>backend/data/db/</code> &mdash; same disk, same backup story, zero new
+  moving parts.
+</p>
+
+<p>
+  If you later scale to multiple server instances behind a load balancer,
+  swap <code>SqliteSaver</code> for <code>PostgresSaver</code> and point it at
+  any Postgres connection string (a managed service like Supabase / Neon / RDS,
+  or your own Postgres container). The supervisor code does not change &mdash;
+  only the checkpointer instantiation line. Same pattern as swapping DuckDB
+  for BigQuery in production.
+</p>
+
+
+
+</body>
+</html>

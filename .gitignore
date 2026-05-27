@@ -1,0 +1,55 @@
+# =========================
+# OS / editor
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Secrets (defensive — sub-folders also gitignore these)
+# =========================
+.env
+.env.local
+.env.*.local
+
+# =========================
+# Python (defensive — backend/.gitignore covers most)
+# =========================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# =========================
+# Node (defensive — frontend/.gitignore covers most)
+# =========================
+node_modules/
+
+# =========================
+# Build / output artifacts
+# =========================
+dist/
+build/
+*.log
+
+# =========================
+# Scratch / temp
+# =========================
+tmp/
+scratch/
+*.bak
+
+# =========================
+# design/ folder: ONLY push the single system design HTML file.
+# Everything else (md drafts, notes, etc.) stays local.
+# =========================
+design/*
+!design/systemdesign.html
+
+# =========================
+# Demo questions list — local-only walkthrough reference
+# =========================
+examples.txt
