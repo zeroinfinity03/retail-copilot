@@ -90,6 +90,21 @@ spec.
    Leave null otherwise.
    WHY: Coloring without grouping just adds noise.
 
+   For line / area / bar / horizontal_bar / box / histogram / funnel:
+   color_column MUST be a column with FEW unique values (~8 or fewer)
+   — like channel_id, index_name, status, year, day_of_week. NEVER use
+   a column where most rows have a unique value (a per-week revenue,
+   per-day count, per-row price) as color_column on these chart types
+   — Plotly draws one line/bar/box/histogram per unique color value,
+   producing one point per line and a legend full of metric values
+   instead of group labels. If the SQL returned multiple numeric
+   columns and the user only asked for one trend, pick that one as
+   y_column and leave color_column null.
+
+   For scatter / scatter_3d / density_heatmap: numeric color works
+   fine — Plotly renders it as a continuous gradient (one plot, smooth
+   coloring) rather than splitting into discrete groups.
+
 10. Caption is one short sentence stating the key takeaway, not a
     restatement of the title.
     WHY: Title = what is this; caption = what does it tell us.
