@@ -35,7 +35,7 @@ You need two keys:
 **3. Install Python dependencies**
 
 ```bash
-uv sync                   # still inside backend/
+uv sync
 ```
 
 **4. Download the dataset and place the CSVs in `backend/raw_data/`**
