@@ -2,9 +2,11 @@
 
 A multi-agent assistant for retail analytics. An internal analyst types a question in plain English; a supervisor agent decomposes it into sub-tasks, dispatches specialist agents in parallel, and a synthesizer composes a grounded, citation-backed report with an optional interactive chart.
 
-> **For the detailed system design, open:** [`design/systemdesign.html`](design/systemdesign.html)
+> 🔗 **Live system design walkthrough:** <https://zeroinfinity03.github.io/retail-copilot/design/systemdesign.html>
 >
-> That single file is the complete walkthrough — architecture, data, every agent in depth, with diagrams and code snippets.
+> Or open the file locally: [`design/systemdesign.html`](design/systemdesign.html)
+>
+> That single page is the complete walkthrough — architecture, data, every agent in depth, with diagrams and code snippets.
 
 ---
 
