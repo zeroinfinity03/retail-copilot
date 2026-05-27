@@ -101,7 +101,7 @@ project/
 
 The pipeline is stateless by default — `main.py` reads only the latest user message and ignores the rest of the conversation, so follow-up questions like *"now break that down by category"* cannot resolve references. To enable session memory (memory that lasts as long as the browser tab is open), pass the full message history into the supervisor as context. One small change in `main.py` is enough — no agent needs to be modified.
 
-See the **"Adding session-level memory (optional)"** section at the bottom of [`design/systemdesign.html`](design/systemdesign.html) for the exact before / after code.
+**The exact replacement code already sits commented at the bottom of [`backend/main.py`](backend/main.py)** — uncomment the block, replace the single `user_query = user_msgs[-1].content` line inside `chat()` with it, and session memory is on. The HTML walkthrough at [`design/systemdesign.html`](design/systemdesign.html) (section *"Adding session-level memory (optional)"*) explains the why.
 
 ## Long-term memory (optional)
 
