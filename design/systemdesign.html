@@ -7,7 +7,7 @@
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 40px auto;
     padding: 20px;
     background: #fafafa;
@@ -590,61 +590,35 @@ The supervisor orchestrates; the rest do the actual work.
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>user_query: str</code><br>
-        <em>e.g., "Project Ladieswear revenue and what the market expects"</em>
+        JSON request body from the frontend (POST <code>/api/chat</code>):
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"messages":</span> [
+    {<span style="color:#777;">"role":</span> <span style="color:#A11">"user"</span>,      <span style="color:#777;">"content":</span> <span style="color:#A11">"..."</span>},
+    {<span style="color:#777;">"role":</span> <span style="color:#A11">"assistant"</span>, <span style="color:#777;">"content":</span> <span style="color:#A11">"..."</span>},
+    ...
+  ]
+}</pre>
+        <em style="font-size:12px;"><code>main.py</code> extracts <code>messages[-1].content</code> (the latest user message) and passes it as <code>user_query: str</code> to the supervisor.</em>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        Populated <code>state</code> dict: <code>plan</code> + every
-        specialist's result + final narrative
+<pre style="margin:6px 0; font-size:12px;">state = {
+  <span style="color:#777;">"user_query":</span>           str,
+  <span style="color:#777;">"plan":</span>                 {<span style="color:#777;">"rationale":</span> str, <span style="color:#777;">"steps":</span> list},
+  <span style="color:#777;">"sql_results":</span>          dict | None,
+  <span style="color:#777;">"web_results":</span>          dict | None,
+  <span style="color:#777;">"forecast_results":</span>     dict | None,
+  <span style="color:#777;">"chart_results":</span>        dict | None,
+  <span style="color:#777;">"final_report":</span>         str | None,
+  <span style="color:#777;">"synthesizer_skipped":</span>  bool,
+  <span style="color:#777;">"synthesizer_error":</span>    str | None,
+}</pre>
+        <em style="font-size:12px;">Each <code>*_results</code> slot holds that specialist's full return dict (shape shown in the agent's own Output card), or <code>None</code> if the specialist wasn't in the plan.</em>
       </div>
     </div>
   </div>
-
-  <h3>The plan it produces</h3>
-  <div class="plan-example">
-    <div class="plan-label">User query</div>
-    <div class="plan-quote">&ldquo;Project Ladieswear revenue for the next 90 days and tell me what the market expects for womenswear in 2026.&rdquo;</div>
-
-    <div class="plan-label">Supervisor plan</div>
-    <div class="plan-content">
-      <strong>rationale:</strong> internal forecast and external market view are independent &mdash; fan them out in parallel<br>
-      <strong>steps:</strong><br>
-      &nbsp;&nbsp;1. <span style="color:#d35400; font-weight:700;">forecast</span> &mdash; Forecast Ladieswear daily revenue for the next 90 days<br>
-      &nbsp;&nbsp;2. <span style="color:#16a085; font-weight:700;">research</span> &mdash; Market outlook and expert projections for womenswear in 2026
-    </div>
-  </div>
-
-  <h3>Key components</h3>
-  <div class="agent-features">
-    <div class="agent-feature">
-      <div class="label">Single planner call</div>
-      <div class="desc">One gpt-5-mini call returns a typed <code>Plan</code> with rationale + ordered steps.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">Parallel dispatch</div>
-      <div class="desc">ThreadPool fires code / research / forecast in one superstep &mdash; visualization is sequential after code.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">Worker-thread isolation</div>
-      <div class="desc"><code>asyncio.to_thread</code> keeps FastAPI's event loop free during the sync pipeline.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">No specialist work</div>
-      <div class="desc">Never queries DB or hits APIs itself &mdash; pure orchestration.</div>
-    </div>
-  </div>
-
-  <h3>Plan schema (Pydantic structured output)</h3>
-  <pre class="code-snippet"><span class="kw">class</span> PlanStep(BaseModel):
-    agent: Literal[<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>, <span class="str">"chart"</span>]
-    task: <span class="kw">str</span>
-
-<span class="kw">class</span> Plan(BaseModel):
-    rationale: <span class="kw">str</span>
-    steps: <span class="kw">list</span>[PlanStep]</pre>
 
   <h3>Internal flow &mdash; step by step</h3>
   <div class="flow-steps">
@@ -653,9 +627,29 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">1</div>
       <div class="body">
         <div class="step-title">Frontend &rarr; <code>main.py</code> via POST <code>/api/chat</code></div>
-        <div class="step-desc">User types a question in the chat UI. The frontend bundles the message history into JSON and posts it to the backend.</div>
+        <div class="step-desc">User types a question in the chat UI. The frontend collects the full message history (current message plus every prior exchange in this session), builds a JSON body, and posts it to the backend.</div>
 <pre><span class="com">// frontend/src/App.tsx</span>
-<span class="kw">await</span> fetch(<span class="str">"/api/chat"</span>, { method: <span class="str">"POST"</span>, body: JSON.stringify({ messages }) });</pre>
+<span class="kw">await</span> fetch(<span class="str">"/api/chat"</span>, {
+  method: <span class="str">"POST"</span>,
+  headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
+  body: JSON.stringify({ messages }),
+});</pre>
+        <div class="step-desc" style="margin-top:8px;">Single-turn request body — what the very first message looks like:</div>
+<pre><span class="com">// First turn</span>
+{
+  <span class="str">"messages"</span>: [
+    { <span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Show me top 5 best-selling Ladieswear last quarter"</span> }
+  ]
+}</pre>
+        <div class="step-desc" style="margin-top:8px;">Multi-turn — the same array carries every prior message in the session:</div>
+<pre>{
+  <span class="str">"messages"</span>: [
+    { <span class="str">"role"</span>: <span class="str">"user"</span>,      <span class="str">"content"</span>: <span class="str">"Top 5 Ladieswear sellers last quarter"</span> },
+    { <span class="str">"role"</span>: <span class="str">"assistant"</span>, <span class="str">"content"</span>: <span class="str">"Ladieswear top 5 by revenue: ..."</span> },
+    { <span class="str">"role"</span>: <span class="str">"user"</span>,      <span class="str">"content"</span>: <span class="str">"Now project the next 90 days"</span> }
+  ]
+}</pre>
+        <div class="step-desc" style="margin-top:8px;">If the body is malformed (missing <code>messages</code>, wrong types, extra fields), FastAPI auto-returns <code>422 Unprocessable Entity</code> before the handler even runs — Pydantic validates the schema first.</div>
       </div>
     </div>
 
@@ -699,6 +693,23 @@ The supervisor orchestrates; the rest do the actual work.
     response_format=Plan,
 )
 <span class="kw">return</span> response.choices[0].message.parsed   <span class="com"># typed Plan object</span></pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The <code>Plan</code> schema</strong> — what the LLM must return:</div>
+<pre><span class="kw">class</span> PlanStep(BaseModel):
+    agent: Literal[<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>, <span class="str">"chart"</span>]
+    task: <span class="kw">str</span>
+
+<span class="kw">class</span> Plan(BaseModel):
+    rationale: <span class="kw">str</span>
+    steps: <span class="kw">list</span>[PlanStep]</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Example output</strong> — for the query <em>"Project Ladieswear revenue for the next 90 days and tell me what the market expects for womenswear in 2026"</em>, the planner returns:</div>
+<pre>Plan(
+    rationale=<span class="str">"internal forecast and external market view are "</span>
+              <span class="str">"independent — fan them out in parallel"</span>,
+    steps=[
+        PlanStep(agent=<span class="str">"forecast"</span>, task=<span class="str">"Forecast Ladieswear daily revenue for the next 90 days"</span>),
+        PlanStep(agent=<span class="str">"web"</span>,      task=<span class="str">"Market outlook and expert projections for womenswear in 2026"</span>),
+    ],
+)</pre>
       </div>
     </div>
 
@@ -712,6 +723,13 @@ The supervisor orchestrates; the rest do the actual work.
     <span class="kw">for</span> fut <span class="kw">in</span> as_completed(futures):
         agent = futures[fut]
         state[<span class="str">f"</span>{agent}_results<span class="str">"</span>] = fut.result()</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why parallel matters &mdash; time math.</strong> If these three agents ran one after another, the total wait would be the <em>sum</em> of all three:</div>
+<pre><span class="com"># Sequential (one after another)</span>
+t_code + t_research + t_forecast  ≈  3 + 5 + 7  =  <span class="str">15 seconds</span></pre>
+        <div class="step-desc" style="margin-top:8px;">With ThreadPool dispatch, total wait drops to whatever the <em>slowest</em> one takes &mdash; the others finish in the same window:</div>
+<pre><span class="com"># Parallel (all running at once)</span>
+max(t_code, t_research, t_forecast)  ≈  max(3, 5, 7)  =  <span class="str">7 seconds</span></pre>
+        <div class="step-desc" style="margin-top:8px;">The slowest specialist sets the floor; nothing adds. That's the real reason these three live in the parallel batch &mdash; user-facing latency drops by 2&times; or more on typical multi-agent plans.</div>
       </div>
     </div>
 
@@ -758,14 +776,21 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code><br>
+        <code>task: str</code> &mdash; a natural-language sub-task from the supervisor.<br>
         <em>e.g., "Top 5 Ladieswear sellers by revenue, Q3 2020"</em>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        <code>{sql, explanation, columns, rows, row_count, error}</code>
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"sql":</span>         str | None,
+  <span style="color:#777;">"explanation":</span> str,
+  <span style="color:#777;">"columns":</span>     list[str],
+  <span style="color:#777;">"rows":</span>        list[dict],
+  <span style="color:#777;">"row_count":</span>   int,
+  <span style="color:#777;">"error":</span>       str | None,
+}</pre>
       </div>
     </div>
   </div>
@@ -1000,31 +1025,6 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
     across millions of rows.
   </div>
 
-  <h3>Four safety layers</h3>
-  <div class="agent-features">
-    <div class="agent-feature">
-      <div class="label">1. Keyword blocklist</div>
-      <div class="desc">DROP, DELETE, INSERT, UPDATE, ALTER etc. rejected pre-execution via padded matching (no false positives on column names like UPDATED_AT).</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">2. Read-only DuckDB</div>
-      <div class="desc">Connection opened with <code>read_only=True</code> &mdash; engine-level enforcement; writes fail at the engine.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">3. Row cap (1000)</div>
-      <div class="desc">Returned rows capped &mdash; protects memory and UI rendering.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">4. One-shot retry</div>
-      <div class="desc">If execution fails, error message fed back to LLM with one retry attempt.</div>
-    </div>
-  </div>
-
-  <h3>Structured output schema</h3>
-  <pre class="code-snippet"><span class="kw">class</span> SQLOutput(BaseModel):
-    sql: Optional[<span class="kw">str</span>]       <span class="com"># SELECT-only DuckDB query, or None if out of scope</span>
-    explanation: <span class="kw">str</span>          <span class="com"># one-line plain English summary</span></pre>
-
   <h3>Internal flow &mdash; step by step</h3>
   <div class="flow-steps">
 
@@ -1039,6 +1039,11 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
     response_format=SQLOutput,
 )
 <span class="kw">return</span> response.choices[0].message.parsed</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The <code>SQLOutput</code> schema</strong> — what the LLM must return:</div>
+<pre><span class="kw">class</span> SQLOutput(BaseModel):
+    sql: Optional[<span class="kw">str</span>]       <span class="com"># SELECT-only DuckDB query, or None if out of scope</span>
+    explanation: <span class="kw">str</span>          <span class="com"># one-line plain English summary (20 words max)</span></pre>
+        <div class="step-desc" style="margin-top:8px;"><code>sql</code> can be <strong><code>None</code></strong> — that's how the LLM declines when the task is out of scope (e.g., asking for inventory levels the warehouse doesn't have). Step 2 handles that path. <code>explanation</code> is always populated, even when <code>sql=None</code>, so the synthesizer can phrase a graceful "data not available" reply.</div>
       </div>
     </div>
 
@@ -1050,6 +1055,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
 <pre><span class="kw">if</span> llm_output.sql <span class="kw">is</span> <span class="kw">None</span>:
     <span class="kw">return</span> {<span class="str">"sql"</span>: <span class="kw">None</span>, <span class="str">"explanation"</span>: llm_output.explanation,
             <span class="str">"columns"</span>: [], <span class="str">"rows"</span>: [], <span class="str">"row_count"</span>: 0, <span class="str">"error"</span>: <span class="kw">None</span>}</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why this is graceful, not an error.</strong> Notice <code>error: None</code> in the return — the agent is signaling "I read the question, the warehouse genuinely doesn't have this data" rather than "something broke." The synthesizer reads <code>error: None</code> + empty rows + a non-empty <code>explanation</code> and produces a user-facing message like <em>"Inventory levels aren't tracked in this warehouse"</em> instead of a confusing failure message.</div>
       </div>
     </div>
 
@@ -1076,6 +1082,8 @@ result_df = con.execute(sql).fetchdf()</pre>
     <span class="kw">if</span> retry.sql:
         exec_result = execute_sql(retry.sql)
         llm_output = retry</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The retry mechanism in detail.</strong> Two conditions gate the retry: an actual error string in <code>exec_result["error"]</code> AND <code>MAX_RETRIES &gt; 0</code> (default <code>1</code>). When triggered, <code>generate_sql()</code> is re-called with <code>error_context</code> — the function appends the error message to the user prompt so the LLM sees both the original task and what broke last time. This is bounded: <strong>exactly one retry, never a loop</strong>.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Edge case &mdash; retry returns <code>sql=None</code>.</strong> If the LLM gives up on the retry (returns <code>sql=None</code>), the agent keeps the <em>original</em> error and original SQL in the result dict — it does not overwrite. The user sees the SQL that actually ran along with what went wrong, instead of a confusing "we tried but couldn't" message that hides the original failure.</div>
       </div>
     </div>
 
@@ -1110,47 +1118,23 @@ result_df = con.execute(sql).fetchdf()</pre>
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code><br>
+        <code>task: str</code> &mdash; a natural-language market-research sub-task from the supervisor.<br>
         <em>e.g., "2026 fashion retail trends"</em>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        <code>{answer, citations, search_queries_run, model, error}</code>
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"answer":</span>             str | None,
+  <span style="color:#777;">"citations":</span>          list[str],
+  <span style="color:#777;">"search_queries_run":</span> int,
+  <span style="color:#777;">"model":</span>              str,
+  <span style="color:#777;">"error":</span>              str | None,
+}</pre>
       </div>
     </div>
   </div>
-
-  <h3>Key components</h3>
-  <div class="agent-features">
-    <div class="agent-feature">
-      <div class="label">OpenAI-compatible</div>
-      <div class="desc">Same OpenAI SDK, just <code>base_url=https://api.perplexity.ai</code>. No special library.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">Search controls</div>
-      <div class="desc"><code>recency: "year"</code> + <code>context_size: "high"</code> for retail-relevant, deep-context results.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">Black-box magic</div>
-      <div class="desc">Perplexity internally does sub-query expansion, parallel web search, page reading, and synthesis.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">Citations via model_dump</div>
-      <div class="desc">Perplexity adds non-standard fields (citations, search_results) &mdash; accessed via <code>response.model_dump()</code>.</div>
-    </div>
-  </div>
-
-  <h3>API call (with search controls)</h3>
-  <pre class="code-snippet">_get_client().chat.completions.create(
-    model=<span class="str">"sonar-pro"</span>,
-    messages=messages,
-    extra_body={
-        <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
-        <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
-    },
-)</pre>
 
   <h3>Internal flow &mdash; step by step</h3>
   <div class="flow-steps">
@@ -1171,7 +1155,29 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="num">2</div>
       <div class="body">
         <div class="step-title">Call Perplexity Sonar Pro (with search controls)</div>
-        <div class="step-desc">The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity. Two Perplexity-specific options go through <code>extra_body</code>: <code>search_context_size: "high"</code> for deeper page reading, and <code>search_recency_filter: "year"</code> to bias toward recent retail content. Inside Sonar Pro: query expansion, parallel web search, page reads, synthesis with citations. The whole call is wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+        <div class="step-desc">The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity. The whole call is wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Client setup &mdash; same SDK, different URL.</strong> The agent uses the OpenAI Python SDK with <code>base_url</code> rewritten:</div>
+<pre>_client = OpenAI(
+    api_key=os.getenv(<span class="str">"PERPLEXITY_API_KEY"</span>),
+    base_url=<span class="str">"https://api.perplexity.ai"</span>,
+)</pre>
+        <div class="step-desc" style="margin-top:8px;">Because Perplexity is OpenAI-compatible, every other line of code looks identical to a regular OpenAI call &mdash; same client, same <code>chat.completions.create()</code> shape, no special library:</div>
+<pre>response = _get_client().chat.completions.create(
+    model=<span class="str">"sonar-pro"</span>,
+    messages=messages,
+    extra_body={
+        <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
+        <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
+    },
+)</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The two <code>extra_body</code> parameters</strong> — Perplexity-specific options that the OpenAI SDK doesn't know about, so they ride through <code>extra_body</code>:</div>
+<pre>┌──────────────────────────────────────────┬────────┬───────────────────────────────────┐
+│ Parameter                                │ Value  │ Effect                            │
+├──────────────────────────────────────────┼────────┼───────────────────────────────────┤
+│ web_search_options.search_context_size   │ "high" │ Read more pages, deeper context   │
+│ search_recency_filter                    │ "year" │ Bias toward last-year content     │
+└──────────────────────────────────────────┴────────┴───────────────────────────────────┘</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Inside Sonar Pro (black box).</strong> Perplexity does: sub-query expansion → parallel web search → page reads → synthesis with citations. The agent doesn't see any of this — it just receives a response object with the answer + citation URLs attached.</div>
       </div>
     </div>
 
@@ -1192,13 +1198,24 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="body">
         <div class="step-title">Return result dict to supervisor</div>
         <div class="step-desc">The agent returns a consistent dict shape on both the happy path and the failure path &mdash; <code>answer</code>, <code>citations</code>, <code>search_queries_run</code>, <code>model</code>, <code>error</code>. Supervisor stores it in <code>state["web_results"]</code> and the synthesizer reads it later, embedding citation URLs inline in the final narrative.</div>
-<pre><span class="kw">return</span> {
+<pre><span class="com"># Success path</span>
+<span class="kw">return</span> {
     <span class="str">"answer"</span>: answer,
     <span class="str">"citations"</span>: citations,
     <span class="str">"search_queries_run"</span>: num_queries,
     <span class="str">"model"</span>: <span class="str">"sonar-pro"</span>,
     <span class="str">"error"</span>: <span class="kw">None</span>,
 }</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Failure path returns the same keys, different values.</strong> If the Sonar Pro call raised (network error, invalid key, rate limit), the <code>except</code> branch returns:</div>
+<pre><span class="com"># Failure path — same keys, error-shaped values</span>
+<span class="kw">return</span> {
+    <span class="str">"answer"</span>: <span class="kw">None</span>,
+    <span class="str">"citations"</span>: [],
+    <span class="str">"search_queries_run"</span>: 0,
+    <span class="str">"model"</span>: <span class="str">"sonar-pro"</span>,
+    <span class="str">"error"</span>: <span class="kw">str</span>(e),         <span class="com"># the exception message</span>
+}</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why the shapes match.</strong> Downstream code (supervisor, synthesizer, frontend) never has to special-case "did web fail" by checking the dict shape &mdash; same keys are always present. Callers just check <code>error</code> &mdash; <code>None</code> means use the answer + citations, anything else means surface the error in the final report. One contract, two code paths.</div>
       </div>
     </div>
 
@@ -1221,62 +1238,31 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code><br>
+        <code>task: str</code> &mdash; a natural-language forecasting sub-task from the supervisor.<br>
         <em>e.g., "Project Ladieswear daily revenue for next 90 days"</em>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        <code>{historical, prophet_forecast, sarima_forecast, ensemble_forecast, metrics, values_table, chart_html, ...}</code>
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"spec":</span>              dict,
+  <span style="color:#777;">"sql":</span>               str,
+  <span style="color:#777;">"series_label":</span>      str,
+  <span style="color:#777;">"horizon_days":</span>      int,
+  <span style="color:#777;">"historical":</span>        list[dict],
+  <span style="color:#777;">"prophet_forecast":</span>  list[dict] | None,
+  <span style="color:#777;">"sarima_forecast":</span>   list[dict] | None,
+  <span style="color:#777;">"ensemble_forecast":</span> list[dict] | None,
+  <span style="color:#777;">"metrics":</span>           dict,
+  <span style="color:#777;">"values_table":</span>      list[dict],
+  <span style="color:#777;">"chart_html":</span>        str | None,
+  <span style="color:#777;">"explanation":</span>       str,
+  <span style="color:#777;">"error":</span>             str | None,
+}</pre>
       </div>
     </div>
   </div>
-
-  <h3>The 7-step pipeline</h3>
-  <div class="agent-features">
-    <div class="agent-feature">
-      <div class="label">1. LLM &rarr; ForecastSpec</div>
-      <div class="desc">Parses task into typed spec: sql_task, horizon_days, granularity, country_holidays, series_label.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">2. SQL fetch + validate</div>
-      <div class="desc">Calls code agent internally for daily history. Needs &ge; 90 days; auto-detects date + numeric columns.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">3. Holdout score (30 days)</div>
-      <div class="desc">Both models fit on train, predict holdout, compute MAPE. Winner tagged informationally.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">4. Refit on full + project</div>
-      <div class="desc">Both models refit on FULL data (no holdout), project user's horizon_days.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">5. Ensemble average</div>
-      <div class="desc"><code>yhat = (prophet + sarima) / 2</code>. Confidence band is the union of both bands.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">6. Values table</div>
-      <div class="desc">Downsampled side-by-side preview (first / mid / last 10 rows) for the synthesizer.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">7. Combined Plotly chart</div>
-      <div class="desc">Historical (solid black) + Prophet (dashed blue + ribbon) + SARIMA (dashed orange + ribbon) + ensemble (bold green).</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">&nbsp;</div>
-      <div class="desc" style="font-style:italic; color:#777;">SARIMA is implemented via <code>AutoARIMA(season_length=7)</code> &mdash; same model family, parameters auto-selected by AIC.</div>
-    </div>
-  </div>
-
-  <h3>ForecastSpec schema</h3>
-  <pre class="code-snippet"><span class="kw">class</span> ForecastSpec(BaseModel):
-    sql_task: <span class="kw">str</span>                                  <span class="com"># brief for the SQL agent</span>
-    horizon_days: <span class="kw">int</span>                              <span class="com"># 7 - 180</span>
-    granularity: Literal[<span class="str">"day"</span>, <span class="str">"week"</span>, <span class="str">"month"</span>]
-    country_holidays: Optional[<span class="kw">str</span>] = <span class="str">"SE"</span>     <span class="com"># Prophet holiday calendar</span>
-    series_label: <span class="kw">str</span>
-    explanation: <span class="kw">str</span></pre>
 
   <h3>Internal flow &mdash; step by step</h3>
   <div class="flow-steps">
@@ -1286,6 +1272,21 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="body">
         <div class="step-title"><code>make_forecast_spec()</code> &mdash; LLM parses the task into a typed <code>ForecastSpec</code></div>
         <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
+<pre>response = client.chat.completions.parse(
+    model=<span class="str">"gpt-5-mini"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+    response_format=ForecastSpec,
+)
+<span class="kw">return</span> response.choices[0].message.parsed</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The <code>ForecastSpec</code> schema</strong> — what the LLM must return:</div>
+<pre><span class="kw">class</span> ForecastSpec(BaseModel):
+    sql_task:         <span class="kw">str</span>                                <span class="com"># brief for the SQL agent</span>
+    horizon_days:     <span class="kw">int</span>                                <span class="com"># 7 - 180</span>
+    granularity:      Literal[<span class="str">"day"</span>, <span class="str">"week"</span>, <span class="str">"month"</span>]
+    country_holidays: Optional[<span class="kw">str</span>] = <span class="str">"SE"</span>      <span class="com"># Prophet holiday calendar</span>
+    series_label:     <span class="kw">str</span>                                <span class="com"># human-readable label</span>
+    explanation:      <span class="kw">str</span>                                <span class="com"># one-sentence summary</span></pre>
+        <div class="step-desc" style="margin-top:8px;">The <code>horizon_days</code> hard-cap at 180 lives in the schema itself (<code>le=180</code>) — beyond that, confidence bands explode on a 24-month series, so the agent refuses earlier rather than producing low-quality projections.</div>
       </div>
     </div>
 
@@ -1310,6 +1311,10 @@ df = _rows_to_dataframe(sql_out)
 <pre>train = df.iloc[:-30]; holdout = df.iloc[-30:]
 metrics[<span class="str">"prophet_mape"</span>] = _mape(holdout.y, fit_prophet(train, 30).yhat)
 metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(train, 30).yhat)</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why MAPE specifically?</strong> MAPE is the Mean Absolute Percentage Error:</div>
+<pre>MAPE = mean(|actual − predicted| / |actual|) × 100</pre>
+        <div class="step-desc" style="margin-top:8px;">It's <strong>scale-free</strong> &mdash; the percentage is comparable across very different magnitudes. So a Ladieswear forecast (high revenue) and a Sport forecast (lower revenue) can both be evaluated with the same metric. A reading of 12% means predictions average 12% off the truth, regardless of category. Each fit is wrapped in its own <code>try/except</code> &mdash; if one model errors numerically, the other still produces a score.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>How SARIMA is actually implemented.</strong> Inside the agent, SARIMA is wired through <code>AutoARIMA(season_length=7)</code> from <code>statsforecast</code> &mdash; same model family, but the <code>(p,d,q)(P,D,Q,s)</code> parameters are auto-selected by AIC instead of being hand-tuned. The weekly seasonality (<code>season_length=7</code>) makes sense for daily retail data: day-of-week patterns are the dominant cycle.</div>
       </div>
     </div>
 
@@ -1318,6 +1323,8 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
       <div class="body">
         <div class="step-title">Refit BOTH models on the FULL series and project the horizon</div>
         <div class="step-desc">The holdout was only for scoring. To produce the final forecast, each model is re-fit on the complete history (no holdout) and projects <code>horizon_days</code> into the future. Each returns a DataFrame with <code>(ds, yhat, yhat_lower, yhat_upper)</code>.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why refit on full data after holdout?</strong> The holdout existed only to compare the two models honestly. For the actual forecast that ships to the user, leaving out 30 days of training signal would be wasteful &mdash; especially for a 2-year series where every additional month of pattern matters. Refit on the full series, then project forward.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Independent try/except per model.</strong> Each refit is wrapped separately. If Prophet fails on the full data but SARIMA succeeds, the agent still produces a SARIMA-only forecast (ensemble is skipped). Only when <em>both</em> fits fail does the agent return a hard error.</div>
       </div>
     </div>
 
@@ -1370,18 +1377,28 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>columns: list</code>, <code>rows: list[dict]</code>, <code>user_question: str</code>
+        Three arguments from the supervisor (passed positionally):
+<pre style="margin:6px 0; font-size:12px;">columns:       list[str]      <span style="color:#777;"># from the code agent's output</span>
+rows:          list[dict]     <span style="color:#777;"># from the code agent's output</span>
+user_question: str            <span style="color:#777;"># the original NL query</span></pre>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        <code>{chart_type, title, caption, figure_html, figure_json, error}</code>
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"chart_type":</span>  str | None,
+  <span style="color:#777;">"title":</span>       str | None,
+  <span style="color:#777;">"caption":</span>     str | None,
+  <span style="color:#777;">"figure_html":</span> str | None,
+  <span style="color:#777;">"figure_json":</span> str | None,
+  <span style="color:#777;">"error":</span>       str | None,
+}</pre>
       </div>
     </div>
   </div>
 
-  <h3>10 supported chart types</h3>
+  <h3>12 supported chart types</h3>
   <div class="agent-features">
     <div class="agent-feature">
       <div class="label">Comparison</div>
@@ -1399,25 +1416,9 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
       <div class="label">Composition</div>
       <div class="desc">pie, treemap, funnel &mdash; parts-of-a-whole.</div>
     </div>
-  </div>
-
-  <h3>3-stage pipeline</h3>
-  <div class="agent-features">
     <div class="agent-feature">
-      <div class="label">1. LLM &rarr; ChartSpec</div>
-      <div class="desc">Picks <code>chart_type</code> from a Literal of 10 types + column mappings (x, y, color, path, values).</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">2. Validate + retry</div>
-      <div class="desc">Column existence + per-chart-type required-field checks. One retry with error feedback.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">3. Render</div>
-      <div class="desc">One-line per type (<code>px.bar</code>, <code>px.treemap</code>, etc.). Output is self-contained HTML.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">&nbsp;</div>
-      <div class="desc" style="font-style:italic; color:#777;">All charts ship with <code>plotly.js</code> loaded from CDN &mdash; lightweight payload, no offline bundle.</div>
+      <div class="label">Multi-dimensional</div>
+      <div class="desc">scatter_3d, density_heatmap &mdash; 3 numeric KPIs in one view, or 2D density / correlation patterns.</div>
     </div>
   </div>
 
@@ -1438,7 +1439,7 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
       <div class="num">2</div>
       <div class="body">
         <div class="step-title"><code>get_chart_spec()</code> &mdash; LLM picks the chart type and columns</div>
-        <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 10), the x/y column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
+        <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 12), the x / y / z column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
 <pre>response = client.chat.completions.parse(
     model=<span class="str">"gpt-5-mini"</span>,
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
@@ -1456,6 +1457,18 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
 <span class="kw">if</span> err <span class="kw">and</span> MAX_RETRIES &gt; 0:
     spec = get_chart_spec(columns, rows, user_question, error_context=err)
     err = validate_spec(spec, columns)</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Required fields per chart type</strong> &mdash; what the validator enforces:</div>
+<pre>┌────────────────────────────────────────────────────────────┬──────────────────────────────────┐
+│ Chart type                                                  │ Required fields                  │
+├────────────────────────────────────────────────────────────┼──────────────────────────────────┤
+│ bar / horizontal_bar / line / area / scatter / box / funnel │ x_column, y_column               │
+│ pie                                                         │ x_column (names), y_column (vals)│
+│ histogram                                                   │ x_column only                    │
+│ treemap                                                     │ path_columns + values_column     │
+│ scatter_3d                                                  │ x_column, y_column, z_column     │
+│ density_heatmap                                             │ x_column, y_column (z optional)  │
+└────────────────────────────────────────────────────────────┴──────────────────────────────────┘</pre>
+        <div class="step-desc" style="margin-top:8px;">If the LLM picks <code>treemap</code> but forgets <code>path_columns</code>, validation catches it and retries with the specific error message. Same retry pattern as the SQL agent &mdash; one chance to self-correct, never a loop.</div>
       </div>
     </div>
 
@@ -1468,9 +1481,21 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
     fig = px.bar(data_frame=df, x=spec.x_column, y=spec.y_column, title=spec.title)
 <span class="kw">elif</span> spec.chart_type == <span class="str">"treemap"</span>:
     fig = px.treemap(data_frame=df, path=spec.path_columns, values=spec.values_column, ...)
-<span class="com"># ... 8 more chart types</span>
+<span class="com"># ... scatter_3d, density_heatmap, line, area, scatter, box, histogram, pie, funnel</span>
 <span class="kw">if</span> spec.is_time_series:
     fig.update_xaxes(rangeslider_visible=<span class="kw">True</span>)</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Per-chart-type rendering tweaks &mdash; small but important.</strong> The render switch isn't just <em>"pick the right function"</em>; each chart type gets one or two Plotly tweaks that make the output read correctly:</div>
+<pre><span class="com"># bar — y-axis anchored to zero (avoids misleading "tall but tiny range" bars)</span>
+fig = px.bar(...); fig.update_yaxes(rangemode=<span class="str">"tozero"</span>)
+
+<span class="com"># horizontal_bar — biggest bar at top for natural ranking reads</span>
+fig = px.bar(orientation=<span class="str">"h"</span>, ...); fig.update_yaxes(categoryorder=<span class="str">"total ascending"</span>)
+
+<span class="com"># treemap — adds an "All" root tile so the hierarchy renders cleanly</span>
+fig = px.treemap(path=[px.Constant(<span class="str">"All"</span>)] + spec.path_columns, ...)
+
+<span class="com"># density_heatmap — averages z by (x,y) bins instead of just counting when z provided</span>
+fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"</span>)</pre>
       </div>
     </div>
 
@@ -1500,34 +1525,26 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        Full <code>state</code> dict &mdash; every specialist's result (or <code>None</code>).
+        The full <code>state</code> dict produced by the supervisor (every specialist's result, or <code>None</code> when that specialist wasn't in the plan):
+<pre style="margin:6px 0; font-size:12px;">state = {
+  <span style="color:#777;">"user_query":</span>       str,
+  <span style="color:#777;">"plan":</span>             dict,
+  <span style="color:#777;">"sql_results":</span>      dict | None,
+  <span style="color:#777;">"web_results":</span>      dict | None,
+  <span style="color:#777;">"forecast_results":</span> dict | None,
+  <span style="color:#777;">"chart_results":</span>    dict | None,
+}</pre>
       </div>
     </div>
     <div class="agent-card">
       <h4>Output</h4>
       <div class="content">
-        <code>{final_report: markdown, error, skipped: bool}</code>
+<pre style="margin:6px 0; font-size:12px;">{
+  <span style="color:#777;">"final_report":</span> str | None,   <span style="color:#777;"># markdown</span>
+  <span style="color:#777;">"error":</span>        str | None,
+  <span style="color:#777;">"skipped":</span>      bool,
+}</pre>
       </div>
-    </div>
-  </div>
-
-  <h3>4-stage pipeline</h3>
-  <div class="agent-features">
-    <div class="agent-feature">
-      <div class="label">1. Smart-skip check</div>
-      <div class="desc">Trivial queries (single-row SQL, no other context) skip &mdash; frontend gets section-dump fallback.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">2. Per-specialist formatting</div>
-      <div class="desc">Each output sliced: SQL rows sampled, citations capped (6), forecast values downsampled. Token-controlled.</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">3. Single LLM call</div>
-      <div class="desc">One gpt-5-mini call returns free-form markdown text. No structured output (free-form prose).</div>
-    </div>
-    <div class="agent-feature">
-      <div class="label">4. Citation embedding</div>
-      <div class="desc">Web URLs embedded inline; chart referenced naturally; statistical jargon translated to plain English.</div>
     </div>
   </div>
 
@@ -1541,6 +1558,18 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
         <div class="step-desc">Some queries don't need narrative wrapping &mdash; e.g., a single-row SQL count where the section dump already reads cleanly. The synthesizer's <code>should_skip_synthesis()</code> checks this. Forecast always needs narrative, so it never skips when a forecast is present.</div>
 <pre><span class="kw">if</span> should_skip_synthesis(state):
     <span class="kw">return</span> {<span class="str">"final_report"</span>: <span class="kw">None</span>, <span class="str">"error"</span>: <span class="kw">None</span>, <span class="str">"skipped"</span>: <span class="kw">True</span>}</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Skip-conditions table</strong> &mdash; the four scenarios <code>should_skip_synthesis()</code> evaluates:</div>
+<pre>┌─────────────────────────────────────────────────┬───────┬────────────────────────────────────┐
+│ Scenario                                         │ Skip? │ Reason                             │
+├─────────────────────────────────────────────────┼───────┼────────────────────────────────────┤
+│ Forecast result present                          │ Never │ Forecasts always need narrative    │
+│ Multi-result query (SQL + Web, SQL + Chart, …)   │ Never │ Composing across sources IS the    │
+│                                                  │       │   synthesizer's whole job          │
+│ Single-row SQL count, nothing else               │  YES  │ "1,371,980 active members" reads   │
+│                                                  │       │   fine without wrapping prose      │
+│ Anything else                                    │ Never │ Default to synthesizing            │
+└─────────────────────────────────────────────────┴───────┴────────────────────────────────────┘</pre>
+        <div class="step-desc" style="margin-top:8px;">When the synthesizer skips, <code>main.py</code> falls back to a <em>section-dump</em> rendering &mdash; each specialist's output gets its own markdown header. So skipping doesn't mean "no answer" &mdash; it means "the raw structure is clearer than a paragraph would be."</div>
       </div>
     </div>
 
@@ -1556,6 +1585,22 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
     <span class="str">f"FORECAST:\n{</span>_format_forecast_block(state[<span class="str">"forecast_results"</span>])<span class="str">}\n\n"</span>
     <span class="str">f"CHART:\n{</span>_format_chart_block(state[<span class="str">"chart_results"</span>])<span class="str">}\n"</span>
 )</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>What each specialist's slim block actually contains</strong> &mdash; the per-formatter slicing keeps tokens controlled:</div>
+<pre>┌──────────────┬─────────────────────────────────────────────┬──────────────────────────────────────┐
+│ Specialist   │ Full output                                  │ What goes into the LLM block         │
+├──────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
+│ SQL          │ sql, explanation, columns, rows (up to 1000),│ Explanation + row_count + sample of  │
+│              │   row_count, error                            │   first 5 rows                       │
+│ Web          │ answer (markdown), citations (list),         │ Answer text + first 6 citations      │
+│              │   search_queries_run, model, error            │                                      │
+│ Forecast     │ historical (long array), prophet_forecast,   │ Series label + horizon + MAPEs +     │
+│              │   sarima_forecast, ensemble_forecast,         │   first/mid/end 3-row sample of      │
+│              │   metrics, chart_html (50KB+), values_table   │   values_table                       │
+│ Chart        │ chart_type, title, caption, figure_html,     │ Title + caption only                 │
+│              │   figure_json                                 │   (HTML is sent to frontend          │
+│              │                                               │    separately, not via LLM)          │
+└──────────────┴─────────────────────────────────────────────┴──────────────────────────────────────┘</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Why slim?</strong> If the full <code>figure_html</code> (50KB) or full <code>historical</code> array (thousands of rows) went into the LLM message, the prompt token cost would explode and the model's effective attention would be diluted on irrelevant detail. The slim version preserves the decision-relevant signal: <em>what the question was, what the data says in summary, what each specialist concluded</em>. Each formatter also has a fallback: if a specialist returned <code>None</code>, the block becomes <code>"(none)"</code>; if it returned an error, the block becomes <code>"(error: &lt;message&gt;)"</code> &mdash; consistent shape regardless of plan composition.</div>
       </div>
     </div>
 
@@ -1596,29 +1641,33 @@ final_report = response.choices[0].message.content</pre>
   &mdash; no agent needs to be modified.
 </p>
 
-<h3>Current code (stateless)</h3>
-<pre class="code-snippet"><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
-<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
-    user_msgs = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>]
-    user_query = user_msgs[-1].content
-    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query)</pre>
+<h3>The one-line switch inside <code>chat()</code></h3>
+<p style="font-size:14px;">
+  Today the handler reads only the latest message. Replace that one line with
+  a block that concatenates the full history into a single string, and the
+  supervisor sees the whole conversation when it builds the plan.
+</p>
 
-<h3>With session memory (one-place patch)</h3>
-<pre class="code-snippet"><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
-<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
-    history = <span class="str">"\n"</span>.join(<span class="str">f"</span>{m.role.upper()}: {m.content}<span class="str">"</span> <span class="kw">for</span> m <span class="kw">in</span> req.messages[:-1])
-    current = req.messages[-1].content
-    combined = (
-        <span class="str">f"Conversation so far:\n</span>{history}<span class="str">\n\nCurrent question: </span>{current}<span class="str">"</span>
-        <span class="kw">if</span> history <span class="kw">else</span> current
-    )
-    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, combined)</pre>
+<p style="font-size:13px; margin-top:14px;"><strong>Current (stateless) &mdash; this is the line to replace:</strong></p>
+<pre class="code-snippet">user_query = user_msgs[-1].content</pre>
+
+<p style="font-size:13px; margin-top:10px;"><strong>With session memory &mdash; replace the line above with this block:</strong></p>
+<pre class="code-snippet">history = <span class="str">"\n"</span>.join(
+    <span class="str">f"</span>{m.role.upper()}: {m.content}<span class="str">"</span> <span class="kw">for</span> m <span class="kw">in</span> req.messages[:-1]
+)
+current = req.messages[-1].content
+user_query = (
+    <span class="str">f"Conversation so far:\n</span>{history}<span class="str">\n\nCurrent question: </span>{current}<span class="str">"</span>
+    <span class="kw">if</span> history <span class="kw">else</span> current
+)</pre>
 
 <p>
   After this change, the supervisor sees the prior turns when it builds the
   plan, so it can resolve references against the conversation. Memory lives
   only inside the request payload &mdash; it lasts as long as the tab is open.
-  Closing the tab or refreshing the page clears it.
+  Closing the tab or refreshing the page clears it. The replacement block
+  also sits at the bottom of <code>main.py</code> as a commented reference,
+  so enabling memory is uncomment-and-swap.
 </p>
 
 
@@ -1688,6 +1737,52 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
   or your own Postgres container). The supervisor code does not change &mdash;
   only the checkpointer instantiation line. Same pattern as swapping DuckDB
   for BigQuery in production.
+</p>
+
+
+<h2>Future: swapping the forecasting stack to <code>darts</code> (optional)</h2>
+
+<p>
+  The forecasting agent today calls <code>prophet</code> and
+  <code>statsforecast</code> directly. We benchmarked the same fits via the
+  <strong>darts</strong> library (which wraps both engines behind a uniform
+  <code>TimeSeries</code> API) on real H&amp;M daily revenue (734 days,
+  warm-cache, 30-day holdout):
+</p>
+
+<pre>                       RAW           DARTS         DIFF
+Prophet            0.08s         0.07s         noise
+AutoARIMA          0.51s         0.50s         noise
+
+Prophet MAPE     12.33%        12.33%        0.000%
+AutoARIMA MAPE   13.50%        13.50%        0.000%</pre>
+
+<p>
+  <strong>Identical forecasts, identical speed.</strong> Darts isn't faster
+  or more accurate &mdash; it's the same engines underneath. So for the
+  current two-model ensemble (Prophet + AutoARIMA), we kept the direct
+  calls because they're more transparent and one line shorter (darts CI
+  extraction takes an extra <code>quantile_timeseries(0.025)</code> dance).
+</p>
+
+<p>
+  <strong>When the switch would pay off:</strong>
+</p>
+<ul>
+  <li><strong>Adding more model families</strong> &mdash; if we ensembled
+    NBEATS, RNN, LightGBM, etc. alongside Prophet and AutoARIMA, darts'
+    uniform API saves real code. With raw libraries each model has its own
+    fit/predict shape.</li>
+  <li><strong>Built-in backtesting / cross-validation</strong> &mdash;
+    darts has <code>historical_forecasts()</code> and <code>backtest()</code>
+    out of the box. With raw libraries we'd write these helpers ourselves.</li>
+</ul>
+
+<p>
+  A drop-in darts version of <code>_fit_prophet</code> and
+  <code>_fit_autoarima</code> sits as a commented reference at the bottom of
+  <code>backend/agents/forecasting_agent.py</code>. Swap the two functions
+  with the commented versions and nothing else in the pipeline changes.
 </p>
 
 

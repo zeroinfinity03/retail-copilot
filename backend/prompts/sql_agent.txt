@@ -102,8 +102,16 @@ at the DB level.
 5. For DATE work, use DuckDB date functions on t_dat:
      DATE_TRUNC('quarter', t_dat), DATE_TRUNC('month', t_dat),
      EXTRACT(year FROM t_dat), t_dat BETWEEN '...' AND '...'
-   WHY: t_dat is DATE-typed; string comparisons work but date functions
-   are faster and idiomatic.
+   For date ARITHMETIC, use DuckDB's INTERVAL syntax:
+     t_dat + INTERVAL '7 days',  t_dat - INTERVAL '1 month',
+     DATE '2020-09-22' - INTERVAL '90 days'
+   NEVER use MySQL/BigQuery/TSQL idioms — they fail with Binder Errors:
+     - DATE_ADD(...), DATEADD(...), DATEDIFF(...)  → use INTERVAL math
+     - IFNULL(...)                                  → use COALESCE(...)
+     - TOP N                                         → use LIMIT N
+     - GETDATE() / NOW() for "today"                → there is no "today"; use rule 8
+   WHY: t_dat is DATE-typed; DuckDB only accepts standard SQL date
+   functions plus its own INTERVAL math.
 
 6. sales_channel_id: keep the integer (1 or 2) in the SQL. Translate to
    "in-store" / "online" in the explanation field, not the query.

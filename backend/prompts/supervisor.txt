@@ -80,6 +80,26 @@ sequence of specialist agents, each handling one focused sub-task.
     agent renders its own combined chart (historical + Prophet +
     SARIMA + ensemble). A separate chart step would either duplicate
     visualization or fight for the chart slot in the UI.
+
+11. Default-to-warehouse rule: assume every user question refers to
+    our H&M warehouse (the customers, articles, and transactions
+    tables) unless the question is explicitly about competitors,
+    market trends, or external sources. The SQL agent has no other
+    data, so the answer is always in those three tables if a
+    reasonable interpretation exists.
+    Pick the table by the question's noun:
+      - "which customer", "who buys", "age distribution"      → customers (often joined to transactions)
+      - "which article", "best sellers", "product mix"        → articles (often joined to transactions)
+      - "which day", "how many transactions", "channel mix"   → transactions
+      - vague "which row / record / entity has the most…"     → transactions grouped by the most plausible entity (customer_id, article_id, or t_dat — pick whichever the phrasing leans toward; default to customer_id)
+    NEVER refuse a question just because the user didn't write
+    "our db", "warehouse", or a table name. NEVER ask for
+    clarification on vague-but-on-topic questions — emit a SQL
+    step with the best-effort interpretation and let the
+    synthesizer state the assumption in the final report.
+    WHY: Users sitting in a retail analytics tool reasonably
+    expect "the data" to mean the warehouse. Refusal on vague
+    phrasing feels broken when the obvious interpretation exists.
 </rules>
 
 
@@ -190,6 +210,16 @@ Example 9 — current snapshot + future projection (both internal)
       {"agent": "sql",      "task": "Daily jacket revenue across the last quarter"},
       {"agent": "chart",    "task": "Visualize last-quarter daily jacket revenue"},
       {"agent": "forecast", "task": "Forecast daily jacket revenue for the next 60 days"}
+    ]
+  }
+
+Example 10 — vague-but-on-topic warehouse question (default-to-warehouse rule)
+  Question: "which row has the highest no of data points"
+  Output:
+  {
+    "rationale": "Vague phrasing but clearly about our warehouse. Default interpretation: which customer appears most often in the transactions table.",
+    "steps": [
+      {"agent": "sql", "task": "Customer with the highest transaction count, plus the top 10 customers by transaction count"}
     ]
   }
 

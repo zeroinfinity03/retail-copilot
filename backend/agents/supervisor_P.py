@@ -90,8 +90,11 @@ def make_plan(user_query: str) -> Plan:
 # Main entry
 # ============================================================
 
-def run(user_query: str, verbose: bool = False) -> dict:
+def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) -> dict:
     """Run the full multi-agent pipeline on a user query.
+
+    If skip_synthesizer=True, the synthesizer step is omitted (caller will
+    stream the synthesizer separately via synthesizer_agent.run_stream).
 
     Returns a state dict with all agents' outputs.
     """
@@ -158,11 +161,13 @@ def run(user_query: str, verbose: bool = False) -> dict:
             )
 
     # Synthesizer composes the final narrative report from all agent outputs.
-    if verbose: print(f"🧶 Synthesizer ...")
-    synth_out = run_synthesizer(state)
-    state["final_report"] = synth_out["final_report"]
-    state["synthesizer_skipped"] = synth_out.get("skipped", False)
-    state["synthesizer_error"] = synth_out.get("error")
+    # Skipped when the caller plans to stream the synthesizer separately.
+    if not skip_synthesizer:
+        if verbose: print(f"🧶 Synthesizer ...")
+        synth_out = run_synthesizer(state)
+        state["final_report"] = synth_out["final_report"]
+        state["synthesizer_skipped"] = synth_out.get("skipped", False)
+        state["synthesizer_error"] = synth_out.get("error")
 
     return state
 

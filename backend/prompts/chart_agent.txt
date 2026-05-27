@@ -24,7 +24,16 @@ spec.
 - area            — line with the area below filled. Use for cumulative or
                     stacked trends over time.
 - scatter         — points; numeric x, numeric y. For relationships /
-                    correlations.
+                    correlations between two numeric columns.
+- scatter_3d      — 3D points; three numeric axes (x, y, z). Use when the
+                    user asks for a 3D plot OR wants to compare three
+                    numeric KPIs simultaneously. Requires y_column AND
+                    z_column. color_column is optional.
+- density_heatmap — 2D bin grid; numeric/categorical x, numeric/categorical
+                    y, color intensity = count of rows in each bin (or
+                    average of z_column if z is provided). Use for
+                    correlation density, "sales by day-of-week × hour"
+                    patterns, or correlation-matrix-style questions.
 - pie             — slices summing to a whole. 2-6 slices max.
 - box             — distribution by group; categorical x, numeric y. For
                     "spread of price by category" type questions.
@@ -84,6 +93,20 @@ spec.
 10. Caption is one short sentence stating the key takeaway, not a
     restatement of the title.
     WHY: Title = what is this; caption = what does it tell us.
+
+11. Use scatter_3d when the user explicitly asks for a 3D plot OR
+    when there are exactly three numeric KPIs to compare. Provide
+    x_column, y_column, AND z_column. color_column is optional (a
+    fourth dimension via color).
+    WHY: scatter_3d is the only true 3D chart type — never fake it
+    with a 2D scatter + color when the user asked for 3D.
+
+12. Use density_heatmap for "where do most rows fall" or
+    "correlation density" questions across two columns. If a third
+    numeric z_column is provided, the heatmap averages z over each
+    (x,y) bin instead of counting rows.
+    WHY: density_heatmap is the right shape for pattern questions
+    like "sales by day-of-week × hour" or "age vs spend density".
 </rules>
 
 
@@ -92,12 +115,13 @@ Return raw JSON only — no preamble, no markdown fences.
 
 Schema:
 {
-  "chart_type":     "bar" | "horizontal_bar" | "line" | "area" | "scatter" | "pie" | "box" | "histogram" | "treemap" | "funnel",
+  "chart_type":     "bar" | "horizontal_bar" | "line" | "area" | "scatter" | "scatter_3d" | "density_heatmap" | "pie" | "box" | "histogram" | "treemap" | "funnel",
   "x_column":       "<exact column name>",
   "y_column":       "<exact column name>" | null,
   "color_column":   "<exact column name>" | null,
   "path_columns":   ["col1","col2",...] | null,
   "values_column":  "<exact column name>" | null,
+  "z_column":       "<exact column name>" | null,
   "is_time_series": true | false,
   "title":          "<short chart title>",
   "caption":        "<one-line takeaway under the chart>"
@@ -192,9 +216,48 @@ Example 5 — distribution by group
     "color_column": null,
     "path_columns": null,
     "values_column": null,
+    "z_column": null,
     "is_time_series": false,
     "title": "Price spread by department",
     "caption": "Ladieswear has the widest spread; Baby/Children sits in the tightest, lowest band."
+  }
+
+Example 6 — 3D KPI comparison
+  Input:
+    columns: ["t_dat", "total_revenue", "units_sold", "avg_selling_price"]
+    sample rows: [{"t_dat":"2020-09-01","total_revenue":1545.2,"units_sold":67200,"avg_selling_price":0.023}, ...]
+    user question: "Give me a 3D plot of the three most important KPIs"
+  Output:
+  {
+    "chart_type": "scatter_3d",
+    "x_column": "total_revenue",
+    "y_column": "units_sold",
+    "color_column": "t_dat",
+    "path_columns": null,
+    "values_column": null,
+    "z_column": "avg_selling_price",
+    "is_time_series": false,
+    "title": "Revenue × Units × Avg Selling Price (last 90 days)",
+    "caption": "Revenue climbs with units sold while avg selling price stays roughly flat, confirming volume-driven growth."
+  }
+
+Example 7 — density heatmap (correlation pattern)
+  Input:
+    columns: ["day_of_week", "hour_of_day", "txn_count"]
+    sample rows: [{"day_of_week":"Mon","hour_of_day":14,"txn_count":1240}, ...]
+    user question: "Show me a heatmap of transaction density by day of week and hour"
+  Output:
+  {
+    "chart_type": "density_heatmap",
+    "x_column": "hour_of_day",
+    "y_column": "day_of_week",
+    "color_column": null,
+    "path_columns": null,
+    "values_column": null,
+    "z_column": "txn_count",
+    "is_time_series": false,
+    "title": "Transaction density by day-of-week × hour",
+    "caption": "Heaviest traffic clusters around weekday lunch hours and Saturday afternoons."
   }
 
 </examples>

@@ -24,33 +24,46 @@ export default function App() {
     ]);
     setIsLoading(true);
 
-    try {
-      const data = await sendAgentRequest([...messages, userMsg]);
+    // Helper: update the in-flight assistant message (always the last one)
+    const updateAssistant = (patch) => {
       setMessages((prev) => {
         const next = [...prev];
-        next[next.length - 1] = {
-          role: 'assistant',
-          content: data.text || '',
-          chart_html: data.chart_html || null,
-          chart_title: data.chart_title || null,
-          chart_caption: data.chart_caption || null,
-          loading: false,
-        };
+        const last = next[next.length - 1];
+        next[next.length - 1] = { ...last, ...patch };
         return next;
       });
-    } catch (err) {
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          role: 'assistant',
+    };
+
+    await sendAgentRequest([...messages, userMsg], {
+      onToken: (chunk) => {
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          next[next.length - 1] = {
+            ...last,
+            content: (last.content || '') + chunk,
+            loading: false,
+          };
+          return next;
+        });
+      },
+      onComplete: (chart) => {
+        updateAssistant({
+          chart_html: chart.chart_html,
+          chart_title: chart.chart_title,
+          chart_caption: chart.chart_caption,
+          loading: false,
+        });
+      },
+      onError: (err) => {
+        updateAssistant({
           content: `**Error:** ${err.message || 'Something went wrong'}`,
           loading: false,
-        };
-        return next;
-      });
-    } finally {
-      setIsLoading(false);
-    }
+        });
+      },
+    });
+
+    setIsLoading(false);
   }
 
   return (

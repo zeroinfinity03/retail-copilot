@@ -230,6 +230,46 @@ def run(state: dict) -> dict:
     }
 
 
+def run_stream(state: dict):
+    """Streaming variant of run(). Yields events as the LLM emits token chunks.
+
+    Events:
+      {"type": "skip"}                              — synthesis skipped (trivial query)
+      {"type": "text",  "content": "<token chunk>"} — incremental token chunk
+      {"type": "done",  "final_report": "<text>"}   — full accumulated report
+      {"type": "error", "error": "<message>"}       — fatal API error
+
+    Used by main.py's /api/chat streaming endpoint. Same skip / format logic
+    as run(); only the LLM call is switched to stream=True.
+    """
+    if should_skip_synthesis(state):
+        yield {"type": "skip"}
+        return
+
+    user_message = build_user_message(state)
+
+    accumulated: list[str] = []
+    try:
+        stream = _get_client().chat.completions.create(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": load_system_prompt()},
+                {"role": "user",   "content": user_message},
+            ],
+            stream=True,
+        )
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                accumulated.append(delta)
+                yield {"type": "text", "content": delta}
+        yield {"type": "done", "final_report": "".join(accumulated)}
+    except Exception as e:
+        yield {"type": "error", "error": str(e)}
+
+
 # ============================================================
 # Smoke test (mock state)
 # ============================================================

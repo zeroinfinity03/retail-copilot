@@ -106,6 +106,7 @@ class AgentState(TypedDict, total=False):
     final_report: Optional[str]
     synthesizer_skipped: Optional[bool]
     synthesizer_error: Optional[str]
+    skip_synthesizer: Optional[bool]
 
 
 # ============================================================
@@ -193,6 +194,10 @@ def post_parallel_node(state: AgentState) -> dict:
 
 
 def synthesizer_node(state: AgentState) -> dict:
+    # Caller (e.g., streaming endpoint) sets skip_synthesizer when it plans to
+    # run the synthesizer separately in streaming mode. The node becomes a no-op.
+    if state.get("skip_synthesizer"):
+        return {}
     out = run_synthesizer(state)
     return {
         "final_report": out["final_report"],
@@ -283,7 +288,12 @@ def build_graph():
     return g.compile()
 
 
-def run(user_query: str) -> dict:
+def run(user_query: str, skip_synthesizer: bool = False) -> dict:
+    """Run the full multi-agent graph on a user query.
+
+    If skip_synthesizer=True, the synthesizer node short-circuits (the caller
+    will stream the synthesizer separately via synthesizer_agent.run_stream).
+    """
     app = build_graph()
     initial: AgentState = {
         "user_query":       user_query,
@@ -293,6 +303,7 @@ def run(user_query: str) -> dict:
         "forecast_results": None,
         "chart_results":    None,
         "final_report":     None,
+        "skip_synthesizer": skip_synthesizer,
     }
     return app.invoke(initial)
 

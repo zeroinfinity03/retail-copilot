@@ -57,6 +57,8 @@ ChartType = Literal[
     "line",
     "area",
     "scatter",
+    "scatter_3d",
+    "density_heatmap",
     "pie",
     "box",
     "histogram",
@@ -83,6 +85,14 @@ class ChartSpec(BaseModel):
     values_column: Optional[str] = Field(
         default=None,
         description="Size/value column for treemap. Null for other chart types.",
+    )
+    z_column: Optional[str] = Field(
+        default=None,
+        description=(
+            "Exact column name for the z-axis (third numeric dimension). "
+            "Required for scatter_3d. Optional for density_heatmap (when provided, "
+            "the heatmap aggregates z by x,y bins instead of counting). Null otherwise."
+        ),
     )
     is_time_series: bool = Field(
         default=False,
@@ -147,6 +157,7 @@ def validate_spec(spec: ChartSpec, columns: list[str]) -> Optional[str]:
         ("y_column", spec.y_column),
         ("color_column", spec.color_column),
         ("values_column", spec.values_column),
+        ("z_column", spec.z_column),
     ]:
         if col is not None and col not in columns:
             bad.append(f"{label}={col!r} not in columns {columns}")
@@ -168,6 +179,14 @@ def validate_spec(spec: ChartSpec, columns: list[str]) -> Optional[str]:
             bad.append("treemap requires path_columns")
         if not spec.values_column:
             bad.append("treemap requires values_column")
+    if spec.chart_type == "scatter_3d":
+        if not spec.y_column:
+            bad.append("scatter_3d requires y_column")
+        if not spec.z_column:
+            bad.append("scatter_3d requires z_column")
+    if spec.chart_type == "density_heatmap":
+        if not spec.y_column:
+            bad.append("density_heatmap requires y_column")
 
     return "; ".join(bad) if bad else None
 
@@ -211,6 +230,30 @@ def render_figure(spec: ChartSpec, rows: list[dict]) -> dict:
 
         elif spec.chart_type == "scatter":
             fig = px.scatter(**common)
+
+        elif spec.chart_type == "scatter_3d":
+            scatter3d_kwargs = dict(
+                data_frame=df,
+                x=spec.x_column,
+                y=spec.y_column,
+                z=spec.z_column,
+                title=spec.title,
+            )
+            if spec.color_column:
+                scatter3d_kwargs["color"] = spec.color_column
+            fig = px.scatter_3d(**scatter3d_kwargs)
+
+        elif spec.chart_type == "density_heatmap":
+            heatmap_kwargs = dict(
+                data_frame=df,
+                x=spec.x_column,
+                y=spec.y_column,
+                title=spec.title,
+            )
+            if spec.z_column:
+                heatmap_kwargs["z"] = spec.z_column
+                heatmap_kwargs["histfunc"] = "avg"
+            fig = px.density_heatmap(**heatmap_kwargs)
 
         elif spec.chart_type == "box":
             fig = px.box(**common)
