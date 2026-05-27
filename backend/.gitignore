@@ -28,9 +28,11 @@ ENV/
 !example.env
 
 # =========================
-# Local prompt-engineering reference (not part of the project)
+# Local reference notes (not part of the project)
 # =========================
 prompts/prompt.txt
+langgraph.txt
+langgraphdocs.txt
 
 # =========================
 # Data — do NOT commit warehouse or raw CSVs (kept locally only)
