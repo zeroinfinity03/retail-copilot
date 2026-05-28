@@ -438,6 +438,7 @@ textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-r
    Chart embed inside agent message (iframe sandbox)
    ==================================================== */
 .msg-chart {
+  position: relative;
   margin-top: 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -449,6 +450,31 @@ textarea::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-r
   height: 480px;
   border: 0;
   display: block;
+}
+.msg-chart-frame:fullscreen {
+  height: 100vh;
+}
+.msg-chart-expand {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.msg-chart-expand:hover {
+  background: #fff;
+  color: #111;
 }
 
 /* ====================================================

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, Share2, RefreshCw, MoreHorizontal } from 'lucide-react';
+import { Copy, Check, Share2, RefreshCw, MoreHorizontal, Maximize2 } from 'lucide-react';
 import CodeBlock from './CodeBlock';
 
 export default function Message({
@@ -21,6 +21,14 @@ export default function Message({
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {}
+  }
+
+  function openChartInNewTab() {
+    if (!chartHtml) return;
+    const blob = new Blob([chartHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   if (isUser) {
@@ -64,6 +72,15 @@ export default function Message({
 
         {chartHtml && (
           <div className="msg-chart">
+            <button
+              type="button"
+              className="msg-chart-expand"
+              onClick={openChartInNewTab}
+              aria-label="Open in new tab"
+              title="Open in new tab"
+            >
+              <Maximize2 size={14} strokeWidth={1.75} />
+            </button>
             <iframe
               srcDoc={chartHtml}
               title={chartTitle || 'Chart'}
