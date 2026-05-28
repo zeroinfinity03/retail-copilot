@@ -21,15 +21,15 @@ at the DB level.
 
 <table name="articles">
   Description: H&M product catalog. 105,542 rows. One row per SKU.
-  Columns:
-    article_id (VARCHAR, primary key)         — unique SKU
+  Columns (categorical column values enumerated below in <category_values>):
+    article_id (VARCHAR, primary key)
     product_code (VARCHAR)                    — parent product (variants share)
-    prod_name (VARCHAR)                       — e.g., "Strap top"
+    prod_name (VARCHAR)                       — free-text SKU name
     product_type_no (BIGINT)
-    product_type_name (VARCHAR)               — e.g., "Vest top", "T-shirt"
-    product_group_name (VARCHAR)              — e.g., "Garment Upper body"
+    product_type_name (VARCHAR)
+    product_group_name (VARCHAR)
     graphical_appearance_no (BIGINT)
-    graphical_appearance_name (VARCHAR)       — e.g., "Solid", "Stripe", "Floral"
+    graphical_appearance_name (VARCHAR)
     colour_group_code (VARCHAR)
     colour_group_name (VARCHAR)               — e.g., "Black", "Light Pink"
     perceived_colour_value_id (BIGINT)
@@ -39,9 +39,7 @@ at the DB level.
     department_no (BIGINT)
     department_name (VARCHAR)
     index_code (VARCHAR)
-    index_name (VARCHAR)                      — "Ladieswear" / "Menswear" /
-                                                 "Divided" / "Baby/Children" /
-                                                 "Sport"
+    index_name (VARCHAR)
     index_group_no (BIGINT)
     index_group_name (VARCHAR)
     section_no (BIGINT)
@@ -75,6 +73,97 @@ at the DB level.
     sales_channel_id (BIGINT)                 — 1 = in-store, 2 = online
 </table>
 </warehouse>
+
+
+<category_values>
+Distinct values for the categorical columns of `articles`. Match the
+user's word against these; do not invent values not listed here.
+
+product_group_name (19 values):
+  Accessories | Bags | Cosmetic | Fun | Furniture | Garment Full body |
+  Garment Lower body | Garment Upper body | Garment and Shoe care |
+  Interior textile | Items | Nightwear | Shoes | Socks & Tights |
+  Stationery | Swimwear | Underwear | Underwear/nightwear | Unknown
+
+index_name (10 values):
+  Baby Sizes 50-98 | Children Accessories, Swimwear |
+  Children Sizes 134-170 | Children Sizes 92-140 | Divided |
+  Ladies Accessories | Ladieswear | Lingeries/Tights | Menswear | Sport
+
+index_group_name (5 values):
+  Baby/Children | Divided | Ladieswear | Menswear | Sport
+
+garment_group_name (21 values):
+  Accessories | Blouses | Dressed | Dresses Ladies | Dresses/Skirts girls |
+  Jersey Basic | Jersey Fancy | Knitwear | Outdoor | Shirts | Shoes |
+  Shorts | Skirts | Socks and Tights | Special Offers | Swimwear |
+  Trousers | Trousers Denim | Under-, Nightwear | Unknown |
+  Woven/Jersey/Knitted mix Baby
+
+graphical_appearance_name (30 values):
+  All over pattern | Application/3D | Argyle | Chambray | Check |
+  Colour blocking | Contrast | Denim | Dot | Embroidery | Front print |
+  Glittering/Metallic | Hologram | Jacquard | Lace | Melange | Mesh |
+  Metallic | Mixed solid/pattern | Neps | Other pattern | Other structure |
+  Placement print | Sequin | Slub | Solid | Stripe | Transparent |
+  Treatment | Unknown
+
+perceived_colour_master_name (20 values):
+  Beige | Black | Blue | Bluish Green | Brown | Green | Grey |
+  Khaki green | Lilac Purple | Metal | Mole | Orange | Pink | Red |
+  Turquoise | Unknown | White | Yellow | Yellowish Green | undefined
+
+section_name (56 values):
+  Baby Boy | Baby Essentials & Complements | Baby Girl |
+  Boys Underwear & Basics | Collaborations | Contemporary Casual |
+  Contemporary Smart | Contemporary Street | Denim Men |
+  Divided Accessories | Divided Asia keys | Divided Basics |
+  Divided Collection | Divided Complements Other | Divided Projects |
+  Divided Selected | EQ Divided | Girls Underwear & Basics | H&M+ |
+  Kids & Baby Shoes | Kids Accessories, Swimwear & D | Kids Boy |
+  Kids Girl | Kids Local Relevance | Kids Outerwear | Kids Sports |
+  Ladies Denim | Ladies H&M Sport | Ladies Other | Mama |
+  Men Accessories | Men Edition | Men H&M Sport | Men Other |
+  Men Other 2 | Men Project | Men Shoes | Men Suits & Tailoring |
+  Men Underwear | Mens Outerwear | Special Collections |
+  Womens Big accessories | Womens Casual | Womens Everyday Basics |
+  Womens Everyday Collection | Womens Jackets | Womens Lingerie |
+  Womens Nightwear, Socks & Tigh | Womens Premium | Womens Shoes |
+  Womens Small accessories | Womens Swimwear, beachwear |
+  Womens Tailoring | Womens Trend | Young Boy | Young Girl
+
+product_type_name (131 values — sample below; use `ILIKE '%term%'` for fuzzy match):
+  Accessories set, Backpack, Bag, Ballerinas, Beanie, Belt, Bikini top,
+  Blanket, Blazer, Blouse, Bodysuit, Boots, Bra, Cap, Cardigan, Coat,
+  Cushion, Dress, Earring, Flat shoes, Gloves, Hat/beanie, Headband,
+  Heels, Hoodie, Jacket, Jumpsuit/Playsuit, Leggings/Tights, Necklace,
+  Pyjama bottom, Pyjama set, Sandals, Scarf, Shirt, Shorts, Skirt,
+  Sneakers, Socks, Sunglasses, Sweater, Swimsuit, T-shirt, Top, Trousers,
+  Underwear bottom, Vest top, Wallet, Watch, ... (full count: 131)
+
+department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy match):
+  Accessories, Bags, Basics, Belts, Blazer, Blouse, Boots, Bottoms,
+  Bottoms Boys, Bottoms Girls, Denim Other Garments, Denim Trousers,
+  Denim shorts, Denim trousers, Dress, Dresses, Heels, Jacket,
+  Jacket Casual, Jacket Smart, Jacket Street, Jackets, Jersey, Jersey Basic,
+  Jersey Fancy, Knitwear, Loungewear, Nightwear, Outwear, Scarves,
+  Shirt, Shoes, Shorts, Skirts, Sneakers, Socks, Suit, Suit jacket,
+  Sunglasses, Sweater, Swimwear, Tights basic, Tops Boys, Tops Girls,
+  Trouser, Trousers, Wallet, ... (full count: 250)
+</category_values>
+
+
+<category_lookup_rules>
+1. If the user's word appears verbatim in one column's enumeration above,
+   use exact match: `WHERE col = 'Exact Value'`.
+   Otherwise — including near-misses (plural/morphology) and the
+   high-cardinality columns `product_type_name` and `department_name`
+   (only samples shown) — use fuzzy matching across plausible columns:
+     WHERE LOWER(col1) LIKE '%term%' OR LOWER(col2) LIKE '%term%' ...
+
+2. customers.postal_code is HASHED (64-char hex). Return `sql=null` if
+   the user gives a literal postal code.
+</category_lookup_rules>
 
 
 <rules>
