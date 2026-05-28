@@ -10,6 +10,63 @@ A multi-agent assistant for retail analytics. An internal analyst types a questi
 
 ---
 
+## Repository layout
+
+```
+project/
+├── backend/
+│   ├── agents/
+│   │   ├── supervisor_P.py          plain-Python supervisor (default)
+│   │   ├── supervisor_L.py          LangGraph variant (same behaviour)
+│   │   ├── sql_agent.py             NL → DuckDB SQL, sandboxed execution
+│   │   ├── web_research_agent.py    Perplexity Sonar Pro market research
+│   │   ├── forecasting_agent.py     Prophet + SARIMA ensemble
+│   │   ├── chart_agent.py           Plotly Express figure spec + render
+│   │   └── synthesizer_agent.py     Final narrative composer
+│   ├── prompts/
+│   │   ├── supervisor.txt
+│   │   ├── sql_agent.txt
+│   │   ├── web_research_agent.txt
+│   │   ├── forecasting_agent.txt
+│   │   ├── chart_agent.txt
+│   │   └── synthesizer.txt
+│   ├── tests/
+│   │   ├── test_supervisor.py        Plan / PlanStep schema tests
+│   │   ├── test_sql_agent.py         Keyword blocklist + SQLOutput schema
+│   │   ├── test_chart_agent.py       ChartSpec + validate_spec checks
+│   │   ├── test_forecasting_agent.py ForecastSpec, MAPE math, helpers
+│   │   ├── test_web_research_agent.py Mock-based response shape tests
+│   │   ├── test_synthesizer.py        Skip logic + format helpers
+│   │   ├── test_e2e.py                Full-pipeline smoke (marked slow)
+│   │   └── conftest.py
+│   ├── scripts/
+│   │   └── load_data.py             One-time DuckDB warehouse build
+│   ├── data/db/                     DuckDB warehouse (gitignored, built locally)
+│   ├── raw_data/                    H&M CSVs (gitignored, downloaded from Kaggle)
+│   ├── main.py                      FastAPI server + /api/chat endpoint
+│   ├── example.env                  Template for API keys
+│   └── pyproject.toml
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                  Chat UI shell
+│   │   ├── components/
+│   │   │   ├── Message.jsx          Single message (with chart iframe)
+│   │   │   ├── Composer.jsx         Input box
+│   │   │   └── CodeBlock.jsx        Syntax-highlighted code blocks
+│   │   ├── lib/
+│   │   │   └── chatStream.js        SSE streaming consumer
+│   │   ├── styles.css
+│   │   └── main.jsx
+│   ├── index.html
+│   └── package.json
+├── design/
+│   └── systemdesign.html            Complete architecture walkthrough
+├── LICENSE
+└── README.md
+```
+
+---
+
 ## Setup (one-time)
 
 **1. Clone the repo**
@@ -83,63 +140,6 @@ npm run dev
 ```
 
 Open <http://localhost:5173> and start asking questions.
-
----
-
-## Repository layout
-
-```
-project/
-├── backend/
-│   ├── agents/
-│   │   ├── supervisor_P.py          plain-Python supervisor (default)
-│   │   ├── supervisor_L.py          LangGraph variant (same behaviour)
-│   │   ├── sql_agent.py             NL → DuckDB SQL, sandboxed execution
-│   │   ├── web_research_agent.py    Perplexity Sonar Pro market research
-│   │   ├── forecasting_agent.py     Prophet + SARIMA ensemble
-│   │   ├── chart_agent.py           Plotly Express figure spec + render
-│   │   └── synthesizer_agent.py     Final narrative composer
-│   ├── prompts/
-│   │   ├── supervisor.txt
-│   │   ├── sql_agent.txt
-│   │   ├── web_research_agent.txt
-│   │   ├── forecasting_agent.txt
-│   │   ├── chart_agent.txt
-│   │   └── synthesizer.txt
-│   ├── tests/
-│   │   ├── test_supervisor.py        Plan / PlanStep schema tests
-│   │   ├── test_sql_agent.py         Keyword blocklist + SQLOutput schema
-│   │   ├── test_chart_agent.py       ChartSpec + validate_spec checks
-│   │   ├── test_forecasting_agent.py ForecastSpec, MAPE math, helpers
-│   │   ├── test_web_research_agent.py Mock-based response shape tests
-│   │   ├── test_synthesizer.py        Skip logic + format helpers
-│   │   ├── test_e2e.py                Full-pipeline smoke (marked slow)
-│   │   └── conftest.py
-│   ├── scripts/
-│   │   └── load_data.py             One-time DuckDB warehouse build
-│   ├── data/db/                     DuckDB warehouse (gitignored, built locally)
-│   ├── raw_data/                    H&M CSVs (gitignored, downloaded from Kaggle)
-│   ├── main.py                      FastAPI server + /api/chat endpoint
-│   ├── example.env                  Template for API keys
-│   └── pyproject.toml
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx                  Chat UI shell
-│   │   ├── components/
-│   │   │   ├── Message.jsx          Single message (with chart iframe)
-│   │   │   ├── Composer.jsx         Input box
-│   │   │   └── CodeBlock.jsx        Syntax-highlighted code blocks
-│   │   ├── lib/
-│   │   │   └── chatStream.js        SSE streaming consumer
-│   │   ├── styles.css
-│   │   └── main.jsx
-│   ├── index.html
-│   └── package.json
-├── design/
-│   └── systemdesign.html            Complete architecture walkthrough
-├── LICENSE
-└── README.md
-```
 
 ---
 
