@@ -90,10 +90,80 @@ Open <http://localhost:5173> and start asking questions.
 
 ```
 project/
-├── backend/         FastAPI server, agents, prompts, scripts, DuckDB warehouse
-├── frontend/        React + Vite chat UI
-└── design/          System design walkthrough (open systemdesign.html)
+├── backend/
+│   ├── agents/
+│   │   ├── supervisor_P.py          plain-Python supervisor (default)
+│   │   ├── supervisor_L.py          LangGraph variant (same behaviour)
+│   │   ├── sql_agent.py             NL → DuckDB SQL, sandboxed execution
+│   │   ├── web_research_agent.py    Perplexity Sonar Pro market research
+│   │   ├── forecasting_agent.py     Prophet + SARIMA ensemble
+│   │   ├── chart_agent.py           Plotly Express figure spec + render
+│   │   └── synthesizer_agent.py     Final narrative composer
+│   ├── prompts/
+│   │   ├── supervisor.txt
+│   │   ├── sql_agent.txt
+│   │   ├── web_research_agent.txt
+│   │   ├── forecasting_agent.txt
+│   │   ├── chart_agent.txt
+│   │   └── synthesizer.txt
+│   ├── tests/
+│   │   ├── test_supervisor.py        Plan / PlanStep schema tests
+│   │   ├── test_sql_agent.py         Keyword blocklist + SQLOutput schema
+│   │   ├── test_chart_agent.py       ChartSpec + validate_spec checks
+│   │   ├── test_forecasting_agent.py ForecastSpec, MAPE math, helpers
+│   │   ├── test_web_research_agent.py Mock-based response shape tests
+│   │   ├── test_synthesizer.py        Skip logic + format helpers
+│   │   ├── test_e2e.py                Full-pipeline smoke (marked slow)
+│   │   └── conftest.py
+│   ├── scripts/
+│   │   └── load_data.py             One-time DuckDB warehouse build
+│   ├── data/db/                     DuckDB warehouse (gitignored, built locally)
+│   ├── raw_data/                    H&M CSVs (gitignored, downloaded from Kaggle)
+│   ├── main.py                      FastAPI server + /api/chat endpoint
+│   ├── example.env                  Template for API keys
+│   └── pyproject.toml
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                  Chat UI shell
+│   │   ├── components/
+│   │   │   ├── Message.jsx          Single message (with chart iframe)
+│   │   │   ├── Composer.jsx         Input box
+│   │   │   └── CodeBlock.jsx        Syntax-highlighted code blocks
+│   │   ├── lib/
+│   │   │   └── chatStream.js        SSE streaming consumer
+│   │   ├── styles.css
+│   │   └── main.jsx
+│   ├── index.html
+│   └── package.json
+├── design/
+│   └── systemdesign.html            Complete architecture walkthrough
+├── LICENSE
+└── README.md
 ```
+
+---
+
+## Testing
+
+Backend tests live in [`backend/tests/`](backend/tests/). 45 unit tests run in under 2 seconds (no LLM calls, no network); 2 end-to-end tests are marked `slow` and only run when you opt in.
+
+```bash
+cd backend
+
+# Fast tests only (45 tests, ~2s, no API keys needed):
+uv run pytest
+
+# Include the slow end-to-end tests (real LLM + DuckDB):
+uv run pytest -m slow
+
+# Everything:
+uv run pytest -m "not slow or slow"
+
+# Single agent's tests:
+uv run pytest tests/test_chart_agent.py -v
+```
+
+Each agent has its own test file plus one shared end-to-end test that drives a real query through the full pipeline.
 
 ---
 
