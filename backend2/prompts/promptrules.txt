@@ -1,0 +1,260 @@
+============================================================
+PROMPT ENGINEERING RULES — for designing system prompts
+============================================================
+
+Sourced from official Anthropic and OpenAI guidance, last
+verified 2026-05-25 against current docs.
+
+Source tags per rule:
+  [A] = Anthropic Prompting Best Practices
+  [O] = OpenAI Prompt Engineering Guide
+  [E] = Engineering hygiene — widely practiced in the
+        prompt-engineering community; not in official guides
+        from either company.
+
+============================================================
+SECTION 1 — FOUNDATIONS
+============================================================
+
+1. DEFINE SUCCESS CRITERIA BEFORE YOU WRITE [A]
+   Decide what the prompt MUST do before drafting it. Write
+   2-3 testable conditions and 10-20 representative inputs.
+   Without this, you cannot tell if iteration is progress or
+   random wandering.
+   Source: Anthropic — "A clear definition of the success
+   criteria for your use case... some ways to empirically
+   test against those criteria."
+
+2. ROLE & IDENTITY FIRST [A, O]
+   Open with one sentence stating WHO the model is — role,
+   expertise level, frame of reference. Even a single
+   sentence shifts tone and behavior.
+   Source: Anthropic — "Setting a role in the system prompt
+   focuses Claude's behavior and tone for your use case.
+   Even a single sentence makes a difference."
+   Example: "You are a senior tax accountant with 15 years
+   of US corporate tax experience."
+
+3. STATE THE OBJECTIVE EXPLICITLY [O]
+   What is the model trying to accomplish? Place near the
+   top, before any constraints.
+   Source: OpenAI GPT-5.x skeleton:
+   role → personality → goal → success criteria →
+   constraints → output.
+
+4. BE SPECIFIC AND DETAILED [A, O]
+   "Reply in 3 sentences" beats "be concise." Every vague
+   adjective is interpreted by the model — replace it with
+   a measurable rule.
+   Source: Anthropic — "Show your prompt to a colleague
+   with minimal context. If they'd be confused, Claude
+   will be too."
+   OpenAI — "The more specific and detailed your
+   instructions, the more likely you'll receive the output
+   you want."
+
+5. EXPLAIN WHY — INCLUDE MOTIVATION [A]
+   When you give an instruction, include the reason. The
+   model uses the WHY to handle edge cases the rule didn't
+   anticipate.
+   Source: Anthropic — "Providing context or motivation
+   behind your instructions, such as explaining to Claude
+   why such behavior is important, can help Claude better
+   understand your goals."
+   Example: "Never use ellipses → Your response will be
+   read aloud by a text-to-speech engine, so never use
+   ellipses."
+
+============================================================
+SECTION 2 — STRUCTURE
+============================================================
+
+6. USE XML TAGS OR DELIMITERS TO SEPARATE SECTIONS [A, O]
+   Wrap each block of your prompt — instructions, context,
+   examples, user data — in its own tag or delimiter.
+   Helps the model parse complex prompts AND prevents it
+   from treating user input as instructions.
+   Source: Anthropic — "XML tags help Claude parse complex
+   prompts unambiguously, especially when your prompt mixes
+   instructions, context, examples, and variable inputs."
+   OpenAI — "Use delimiters like markdown, XML tags, and
+   section titles to clearly indicate distinct parts."
+
+7. LONG-CONTEXT: DOCS AT TOP, QUERY AT BOTTOM [A]
+   For prompts with long documents, place documents FIRST
+   and the actual query LAST. Anthropic reports up to 30%
+   better quality with this ordering. The query at the end
+   keeps the model's attention on what you actually want.
+   Source: Anthropic — "Place your long documents and
+   inputs near the top of your prompt, above your query,
+   instructions, and examples... improve response quality
+   by up to 30%."
+
+8. NUMBERED STEPS WHEN ORDER MATTERS [A]
+   When sequence is important, use a numbered list or
+   bullets. Prose buries the order.
+   Source: Anthropic — "Provide instructions as sequential
+   steps using numbered lists or bullet points when the
+   order or completeness of steps matters."
+
+9. STATE SCOPE EXPLICITLY [A]
+   Newer Claude models (4.7+) are literal. They will not
+   silently generalize an instruction from one item to
+   another. If the rule applies broadly, say so.
+   Source: Anthropic — "Apply this formatting to every
+   section, not just the first one" (for Claude 4.7).
+
+============================================================
+SECTION 3 — WRITING STYLE
+============================================================
+
+10. TELL IT WHAT TO DO — NOT WHAT NOT TO DO [A]
+    "Respond in formal English" beats "don't use slang."
+    Positive instructions give a clear target.
+    Source: Anthropic — "Tell Claude what to do instead of
+    what not to do. Instead of: 'Do not use markdown' /
+    Try: 'Your response should be composed of smoothly
+    flowing prose paragraphs.'"
+
+11. DIAL BACK AGGRESSIVE LANGUAGE FOR NEWER MODELS [A]
+    Claude 4.5+ over-triggers on "CRITICAL:", "YOU MUST",
+    all-caps demands, threats. Use normal English.
+    Source: Anthropic — "Where you might have said
+    'CRITICAL: You MUST use this tool when...' you can use
+    more normal prompting."
+
+12. SET TONE & VOICE EXPLICITLY [A, O]
+    Pick a register: warm, plain, formal, witty. The model
+    defaults to a generic voice if you don't.
+    Source: OpenAI — "Personality and style work best when
+    you define a clear agent persona."
+    Anthropic — model upgrades can shift default tone;
+    "re-evaluate style prompts against the new baseline."
+
+============================================================
+SECTION 4 — EXAMPLES & REASONING
+============================================================
+
+13. INCLUDE 3-5 EXAMPLES, COVER EDGE CASES [A]
+    For non-trivial format or tone, include 3-5 input /
+    output examples. Make them diverse — include edge
+    cases — so the model doesn't lock onto a narrow pattern.
+    Source: Anthropic — "Include 3-5 examples for best
+    results... Diverse: Cover edge cases and vary enough
+    that Claude doesn't pick up unintended patterns."
+
+14. EXTENDED THINKING — USE THE API, NOT THE WORD "THINK" [A]
+    For modern Claude models (4.5+), enable extended
+    thinking via the API parameter, not prompt-level tags.
+    When extended thinking is OFF, also avoid the word
+    "think" in your prompt — Claude 4.5+ tries to engage
+    thinking on that word even when disabled. Use
+    "consider," "evaluate," or "reason through" instead.
+    Manual <thinking> tags are only a fallback when API
+    thinking is unavailable.
+    Source: Anthropic — "Consider moving to adaptive
+    thinking... Claude Opus 4.5 is particularly sensitive
+    to the word 'think'... consider alternatives like
+    'consider,' 'evaluate,' or 'reason through.'"
+
+15. GROUND LONG-DOC RESPONSES IN QUOTES [A]
+    For long-document tasks, ask the model to first quote
+    the relevant parts of the documents before answering.
+    Cuts through noise and reduces hallucination.
+    Source: Anthropic — "Ask Claude to quote relevant parts
+    of the documents first before carrying out its task."
+
+============================================================
+SECTION 5 — OUTPUT CONTROL
+============================================================
+
+16. DEFINE THE OUTPUT FORMAT EXACTLY [A, O]
+    Specify structure, length, tone, required fields. For
+    JSON, give a sample shape. Never leave the model to
+    guess.
+    Source: OpenAI — "Output only the requested format. Do
+    not add prose or markdown fences unless requested."
+
+17. USE STRUCTURED OUTPUTS / TOOL CALLS FOR SCHEMAS [A]
+    For machine-parseable JSON, use the Structured Outputs
+    feature or a tool call — NOT prefill. Prefilling the
+    assistant turn with `{` is unsupported on Claude 4.6+
+    (returns 400 error). Either use Structured Outputs, or
+    instruct directly: "Respond with raw JSON; no preamble."
+    Source: Anthropic — "Starting with Claude 4.6 models...
+    prefilled responses on the last assistant turn are no
+    longer supported. The Structured Outputs feature is
+    designed specifically to constrain Claude's responses
+    to follow a given schema."
+
+============================================================
+SECTION 6 — ITERATION & CHAINING
+============================================================
+
+18. ITERATE AGAINST A REPRESENTATIVE SAMPLE [A, O]
+    Build 10-20 test inputs covering normal + edge cases.
+    Run them on each prompt change. Don't trust a prompt
+    until it passes the eval set, not just your own
+    judgment.
+    Source: Anthropic — "We recommend iterating on prompts
+    against a subset of your evals or test cases."
+    OpenAI — "Test systematically: Evaluate prompt changes
+    against a representative sample."
+
+19. CHAIN PROMPTS FOR COMPLEX TASKS [A]
+    For complex workflows, use prompt chaining: generate a
+    draft → have the model review it against criteria →
+    refine based on the review. Don't try to do it in one
+    shot.
+    Source: Anthropic — "The most common chaining pattern
+    is self-correction: generate a draft → review against
+    criteria → refine based on the review."
+
+============================================================
+SECTION 7 — ENGINEERING HYGIENE
+============================================================
+These are widely-practiced rules from the prompt-eng
+community. Useful but NOT in Anthropic's or OpenAI's
+official guides — treat as engineering best practice.
+
+20. AUDIT FOR CONTRADICTIONS [E]
+    Don't say "be concise" and "thoroughly explain your
+    reasoning" in the same prompt. The model resolves
+    conflicts randomly — and usually against you.
+
+21. DEFINE FALLBACK BEHAVIOR FOR MISSING INFO [E]
+    What does the model do when it doesn't know? Pick ONE:
+    say "I don't have that information," ask a clarifying
+    question, or refuse. An undefined fallback becomes a
+    hallucination.
+
+22. VERSION YOUR PROMPTS [E]
+    Track changes the way you track code. Small wording
+    tweaks shift behavior; without a version log you
+    cannot debug regressions.
+
+23. WRITE MODEL-SPECIFIC, DON'T ASSUME PORTABILITY [E, A]
+    Anthropic publishes per-model prompting guidance because
+    each generation behaves differently. A prompt tuned for
+    Claude 4.7 may not work on 4.6 or Haiku. Older patterns
+    (prefill, "CRITICAL:" framing, <thinking> tags) fail or
+    misfire on newer models. Either target one model, or
+    test on each one you support.
+
+============================================================
+SOURCES (last verified 2026-05-25)
+============================================================
+[A] Anthropic Prompting Best Practices:
+    https://docs.anthropic.com/en/docs/build-with-claude/
+    prompt-engineering
+
+[O] OpenAI Prompt Engineering Guide:
+    https://platform.openai.com/docs/guides/prompt-engineering
+    GPT-5.x prompting guides:
+    https://cookbook.openai.com/
+
+[E] Engineering hygiene — widely practiced in the
+    prompt-engineering community; not codified in official
+    Anthropic or OpenAI guides.
+
+

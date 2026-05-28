@@ -1,0 +1,79 @@
+# =========================
+# Python / uv
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# uv lock file kept; cache excluded
+.uv-cache/
+
+# =========================
+# Secrets and env
+# =========================
+.env
+.env.*
+!example.env
+
+# =========================
+# Local reference notes (not part of the project)
+# =========================
+prompts/prompt.txt
+langgraph.txt
+langgraphdocs.txt
+observation.txt
+test_all_agents.py
+testdeepseek.py
+
+# =========================
+# Symlink to ../backend/data — local dev convenience only
+# (clone-side runs `uv run python scripts/load_data.py` from backend/)
+# =========================
+data
+
+# =========================
+# Data — do NOT commit warehouse or raw CSVs (kept locally only)
+# =========================
+raw_data/
+data/db/*.duckdb
+data/db/*.parquet
+data/*.duckdb
+data/*.csv
+data/*.parquet
+
+# =========================
+# Notebooks / scratch
+# =========================
+*.ipynb_checkpoints/
+rough*.ipynb
+scratch/
+tmp/
+
+# =========================
+# Generated artifacts
+# =========================
+agents/__pycache__/
+scripts/__pycache__/
+scripts/chart_test.html
+agents/chart_test.html
+
+# =========================
+# Editor / OS
+# =========================
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo

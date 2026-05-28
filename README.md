@@ -59,6 +59,7 @@ project/
 │   │   └── main.jsx
 │   ├── index.html
 │   └── package.json
+├── backend2/                        DeepSeek implementation (alternative to backend/)
 ├── design/
 │   └── systemdesign.html            Complete architecture walkthrough
 ├── LICENSE
