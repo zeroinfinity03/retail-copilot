@@ -508,6 +508,9 @@ report.
       <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
         <path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
       </marker>
+      <marker id="arr-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#7a7a7a"/>
+      </marker>
     </defs>
 
     <!-- User question -->
@@ -541,6 +544,13 @@ report.
 
     <ellipse cx="630" cy="379" rx="70" ry="28" fill="#fff" stroke="#222" stroke-width="2"/>
     <text x="630" y="385" text-anchor="middle" font-size="14" font-weight="700" fill="#222">forecast</text>
+
+    <!-- Forecast's internal call to code (sql_agent): dashed because the
+         supervisor does NOT orchestrate this; the forecast agent makes its
+         own sql_agent call to fetch the historical series it needs. -->
+    <path d="M 568 400 Q 400 470 232 400" stroke="#7a7a7a" stroke-width="1.8"
+          stroke-dasharray="6,4" fill="none" marker-end="url(#arr-grey)"/>
+    <text x="400" y="455" text-anchor="middle" font-size="11" fill="#666" font-style="italic">internal sql call (forecast fetches its own history)</text>
 
     <!-- Arrow from code down to visualization (sequential dependency) -->
     <line x1="170" y1="407" x2="170" y2="514" stroke="#222" stroke-width="2" marker-end="url(#arr)"/>
@@ -1295,6 +1305,24 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="body">
         <div class="step-title">Fetch historical series via the SQL agent + reshape + validate</div>
         <div class="step-desc">The forecast agent calls <code>sql_agent.run(spec.sql_task)</code> internally &mdash; supervisor doesn't pass SQL data to it. The returned rows are auto-mapped into a pandas DataFrame with <code>ds</code> (date) and <code>y</code> (numeric) columns. If the series has fewer than 90 days, the agent short-circuits with an error.</div>
+        <div style="background:white; border:1px solid #e5e7eb; border-radius:6px; padding:10px; margin:8px 0;">
+          <svg viewBox="0 0 500 80" style="width:100%; max-width:500px; display:block; margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="fc-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+              </marker>
+            </defs>
+            <ellipse cx="60" cy="40" rx="55" ry="22" fill="#fff" stroke="#222" stroke-width="2"/>
+            <text x="60" y="45" text-anchor="middle" font-size="13" font-weight="700" fill="#222">forecast</text>
+            <line x1="118" y1="40" x2="222" y2="40" stroke="#222" stroke-width="2" marker-end="url(#fc-arr)"/>
+            <text x="170" y="32" text-anchor="middle" font-size="10" fill="#666" font-style="italic">spec.sql_task</text>
+            <ellipse cx="280" cy="40" rx="55" ry="22" fill="#fff" stroke="#222" stroke-width="2"/>
+            <text x="280" y="45" text-anchor="middle" font-size="13" font-weight="700" fill="#222">sql_agent</text>
+            <line x1="338" y1="40" x2="412" y2="40" stroke="#222" stroke-width="2" marker-end="url(#fc-arr)"/>
+            <rect x="412" y="20" width="78" height="40" rx="4" fill="#fff" stroke="#222" stroke-width="2"/>
+            <text x="451" y="45" text-anchor="middle" font-size="13" font-weight="700" fill="#222">DuckDB</text>
+          </svg>
+        </div>
 <pre>sql_out = run_sql(spec.sql_task)
 df = _rows_to_dataframe(sql_out)
 <span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:   <span class="com"># 90 days minimum</span>

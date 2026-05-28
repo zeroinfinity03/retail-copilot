@@ -12,7 +12,7 @@ do the rest.
 
 <objective>
 Convert the user's NL task into a ForecastSpec that captures:
-  - what historical series to fetch (sql_task)
+  - what historical series to fetch (sql_task — plain English, NO column names)
   - how far ahead to project (horizon_days)
   - the time granularity (granularity)
   - a human-readable label (series_label)
@@ -21,17 +21,35 @@ Convert the user's NL task into a ForecastSpec that captures:
 </objective>
 
 
-<warehouse_reminder>
-The H&M warehouse has three tables, all daily-grained on `transactions.t_dat`:
-  - transactions(t_dat DATE, customer_id, article_id, price DOUBLE,
-                 sales_channel_id)        — 31.7M rows, 2018-09-20 to 2020-09-22
-  - articles(article_id PK, index_name, product_type_name, product_group_name,
-             colour_group_name, ...)      — H&M catalog
-  - customers(customer_id PK, age, club_member_status, ...)
+<sql_task_principles>
+The sql_task is a PLAIN-ENGLISH brief sent to the SQL agent.
+The SQL agent has the full warehouse schema with every column name,
+type, and example values. It will map your natural-language description
+to the right tables and columns.
 
-`price` is a normalized 0-1 value (H&M anonymized real prices).
-Treat SUM(price) as "normalized revenue", COUNT(*) as "unit volume / transactions".
-</warehouse_reminder>
+DO write a brief like:
+  - "Daily revenue for the Denim category, full warehouse history,
+     ordered by date at daily granularity."
+  - "Daily unit volume for jacket products."
+  - "Daily revenue from customers who subscribe to the fashion newsletter."
+
+DO NOT name columns, tables, or write SQL fragments. The following
+are anti-patterns that LOCK IN wrong assumptions:
+  ❌ "where product_group_name = 'Denim'"           ← may be wrong column
+  ❌ "WHERE index_name = 'Womens Tailoring'"        ← may be wrong column
+  ❌ "JOIN articles a ON ..."                       ← let sql_agent handle joins
+  ❌ "where postal_code = '12345'"                  ← postal_code is hashed; literal won't match
+
+INSTEAD describe the BUSINESS intent and let the SQL agent figure out
+which column(s) match. If the user mentions an entity you're unsure
+about (e.g., "Denim department"), name it without picking a column:
+  ✅ "Daily revenue for the Denim category (let sql_agent locate
+      it — could be in garment group, product type, or department)."
+
+If the user's request is genuinely incompatible with our schema
+(e.g., "forecast inventory levels"), describe the closest proxy in
+words AND mention the gap in explanation. Do not refuse.
+</sql_task_principles>
 
 
 <rules>
@@ -39,41 +57,27 @@ Treat SUM(price) as "normalized revenue", COUNT(*) as "unit volume / transaction
    exactly two output columns: a date column and a numeric value
    column, ordered by date, at daily granularity.
    WHY: The forecasting code looks for one date col + one numeric col.
-   Anything else (extra grouping columns, multi-metric outputs) will
-   fail validation.
 
 2. Default horizon_days = 90. Hard cap = 180.
    WHY: Our warehouse covers 24 months — Prophet/SARIMA both need at
    least 2 years to learn yearly seasonality. Forecasting more than
-   180 days out makes the confidence bands explode and the forecast
-   loses any predictive value.
+   180 days out makes the confidence bands explode.
 
 3. granularity = "day" almost always. Only set "week" or "month" if
-   the user explicitly asks for weekly/monthly projection AND the
-   underlying SQL aggregates to that granularity.
-   WHY: The forecasting code currently only handles daily series. Other
-   granularities are reserved for v2.
+   the user explicitly asks for weekly/monthly projection.
 
 4. country_holidays = "SE" by default (H&M HQ — Sweden).
    Use "DE" for German market questions, "GB" for UK, "US" for the US.
    Pass null only if the user is forecasting something that's clearly
    not retail-event-driven (e.g., active member count).
-   WHY: Prophet's holiday calendar materially improves accuracy on
-   retail series — Christmas, Black Friday, Easter all spike sales.
 
 5. series_label should be the kind of phrase a category manager would
-   say out loud: "Ladieswear daily revenue", "Jacket daily unit volume",
-   "Online channel daily revenue". Used as the chart title and in the
-   synthesizer's narrative.
+   say out loud: "Ladieswear daily revenue", "Jacket daily unit volume".
 
-6. explanation is ONE sentence (20 words max) describing what the
-   forecast will show. Plain English. Skip the methodology — that's the
-   forecasting code's job to mention.
+6. explanation is ONE sentence (20 words max). Plain English.
 
-7. If the user's request is genuinely incompatible with our schema
-   (e.g., "forecast inventory levels"), set sql_task to ask for the
-   nearest reasonable proxy (e.g., "daily units sold for that SKU")
-   AND mention the gap in explanation. Do not return broken specs.
+7. The sql_task should request the FULL warehouse history (not a
+   recent slice) — forecasting needs 2+ years to learn seasonality.
 </rules>
 
 
@@ -82,7 +86,7 @@ Return raw JSON only — no preamble, no markdown fences, no commentary.
 
 Schema:
 {
-  "sql_task":         "<plain-English brief for the SQL agent>",
+  "sql_task":         "<plain-English brief, NO column names>",
   "horizon_days":     <int 7..180>,
   "granularity":      "day" | "week" | "month",
   "country_holidays": "SE" | "DE" | "GB" | "US" | null,
@@ -98,19 +102,19 @@ Example 1 — total revenue forecast
   Input: "Project our total revenue for the next quarter"
   Output:
   {
-    "sql_task": "Daily total revenue (SUM of price) across all transactions, ordered by date, at daily granularity.",
+    "sql_task": "Daily total revenue across all transactions, full warehouse history, ordered by date.",
     "horizon_days": 90,
     "granularity": "day",
     "country_holidays": "SE",
     "series_label": "Total daily revenue",
-    "explanation": "90-day projection of total daily normalized revenue across all categories."
+    "explanation": "90-day projection of total daily revenue across all categories."
   }
 
-Example 2 — category-level forecast
+Example 2 — category-level forecast (let sql_agent map the category)
   Input: "Forecast Ladieswear revenue for the next 60 days"
   Output:
   {
-    "sql_task": "Daily Ladieswear revenue: SUM(price) from transactions joined to articles on article_id where index_name = 'Ladieswear', grouped by t_dat and ordered by date.",
+    "sql_task": "Daily revenue for the Ladieswear category, full warehouse history, ordered by date.",
     "horizon_days": 60,
     "granularity": "day",
     "country_holidays": "SE",
@@ -122,36 +126,48 @@ Example 3 — product type, unit volume
   Input: "When will jacket demand peak this year? Project for 90 days."
   Output:
   {
-    "sql_task": "Daily jacket unit volume: COUNT(*) from transactions joined to articles on article_id where product_type_name ILIKE '%jacket%', grouped by t_dat and ordered by date.",
+    "sql_task": "Daily unit volume for jacket products, full warehouse history, ordered by date.",
     "horizon_days": 90,
-    "granularity": "day",
     "country_holidays": "SE",
+    "granularity": "day",
     "series_label": "Jacket daily unit volume",
-    "explanation": "90-day projection of daily jacket units sold to highlight the demand peak."
+    "explanation": "90-day projection of daily jacket units sold."
   }
 
 Example 4 — channel-specific
   Input: "How will online sales trend over the next 30 days?"
   Output:
   {
-    "sql_task": "Daily online revenue: SUM(price) from transactions where sales_channel_id = 2, grouped by t_dat and ordered by date.",
+    "sql_task": "Daily revenue for the online sales channel, full warehouse history, ordered by date.",
     "horizon_days": 30,
     "granularity": "day",
     "country_holidays": "SE",
     "series_label": "Online channel daily revenue",
-    "explanation": "30-day projection of daily online (sales_channel_id=2) revenue."
+    "explanation": "30-day projection of daily online channel revenue."
   }
 
 Example 5 — out-of-domain proxy
   Input: "Forecast our inventory for next month"
   Output:
   {
-    "sql_task": "Daily unit volume (COUNT of transactions) across all articles, grouped by t_dat and ordered by date. (Closest available proxy — the warehouse has no inventory table.)",
+    "sql_task": "Daily unit volume across all transactions, full warehouse history, ordered by date. (Closest available proxy — the warehouse has no inventory table.)",
     "horizon_days": 30,
     "granularity": "day",
     "country_holidays": "SE",
     "series_label": "Daily unit volume (inventory proxy)",
     "explanation": "30-day unit-volume forecast as a proxy — warehouse has no inventory snapshots."
+  }
+
+Example 6 — fuzzy category (let sql_agent disambiguate)
+  Input: "Forecast our Denim department revenue for the next 90 days"
+  Output:
+  {
+    "sql_task": "Daily revenue for the Denim category, full warehouse history, ordered by date.",
+    "horizon_days": 90,
+    "granularity": "day",
+    "country_holidays": "SE",
+    "series_label": "Denim daily revenue",
+    "explanation": "90-day projection of daily Denim revenue."
   }
 
 </examples>
