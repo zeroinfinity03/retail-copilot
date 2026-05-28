@@ -33,6 +33,9 @@ ENV/
 prompts/prompt.txt
 langgraph.txt
 langgraphdocs.txt
+observation.txt
+test_all_agents.py
+testdeepseek.py
 
 # =========================
 # Data — do NOT commit warehouse or raw CSVs (kept locally only)
