@@ -1852,5 +1852,212 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
 
 
 
+<style>
+  .deploy-table { width:100%; border-collapse:collapse; margin:18px 0; font-size:14px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,0.06); border-radius:8px; overflow:hidden; }
+  .deploy-table th { background:#4a90e2; color:#fff; text-align:left; padding:10px 14px; font-size:13px; }
+  .deploy-table td { padding:10px 14px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+  .deploy-table tr:last-child td { border-bottom:0; }
+  .deploy-table td.mono { font-family:"SF Mono", Menlo, monospace; white-space:nowrap; color:#2c3e50; }
+  .deploy-skip { background:#fdf3f0; border-left:4px solid #e67e22; padding:12px 18px; border-radius:4px; margin:10px 0; font-size:14px; }
+  .deploy-skip strong { color:#b5651d; }
+</style>
+
+<h2>Deploying to production (AWS)</h2>
+
+<p>
+  The guiding principle for deployment is the same one that shaped the system
+  itself: <strong>use the simplest primitives that fit the workload, justify
+  every choice, and deliberately leave out anything we don&rsquo;t need</strong>
+  &mdash; even when it&rsquo;s available (Bedrock AgentCore, SageMaker, EKS).
+  Knowing what to skip is most of the job.
+</p>
+
+<h3>The three properties that drive every choice</h3>
+<table class="deploy-table">
+  <tr><th>Part</th><th>What it is</th><th>Property that constrains deployment</th></tr>
+  <tr>
+    <td><strong>Backend</strong></td>
+    <td>FastAPI app, <code>POST /api/chat</code> <strong>SSE streaming</strong>; LangGraph supervisor fans out to specialists, then streams the synthesizer token-by-token</td>
+    <td><strong>Long-lived, streaming requests</strong> (a full run is ~10&ndash;60s) and <strong>heavy Python deps</strong> (Prophet + SARIMA + <code>darts</code> need build toolchains)</td>
+  </tr>
+  <tr>
+    <td><strong>Data</strong></td>
+    <td><code>hm.duckdb</code> &mdash; an embedded warehouse built once from ~31M H&amp;M transaction rows</td>
+    <td><strong>Read-only, rarely changes, single file.</strong> No concurrent writes, no transactions</td>
+  </tr>
+  <tr>
+    <td><strong>Frontend</strong></td>
+    <td>React + Vite SPA that consumes the SSE stream</td>
+    <td><strong>Static assets</strong> &mdash; nothing to &ldquo;run&rdquo;</td>
+  </tr>
+</table>
+
+<h3>Recommended architecture</h3>
+<pre class="code-snippet">                         ┌─────────────────────────────┐
+   user (browser)  ───▶   │     S3 + CloudFront (CDN)    │   static SPA  (Cloudflare Pages
+                         │                             │    also works — cheaper)
+                         └──────────────┬──────────────┘
+                                        │  /api/*   (HTTPS, streaming SSE)
+                                        ▼
+                              ┌────────────────────┐
+                              │  Application LB     │   (ALB, ACM cert)
+                              └─────────┬──────────┘
+                                        ▼
+                          ┌──────────────────────────────┐
+                          │     ECS Fargate service       │
+                          │  FastAPI + uvicorn (Docker)   │
+                          │  LangGraph + Prophet / SARIMA │
+                          └───┬───────────┬───────────┬───┘
+                  startup pull│    IAM    │           │ HTTPS
+                   hm.duckdb  ▼   role    ▼           ▼
+                       ┌──────────┐ ┌──────────┐ ┌──────────────┐
+                       │    S3    │ │ Bedrock  │ │  Perplexity  │
+                       │warehouse │ │ (Claude) │ │  Sonar Pro   │
+                       └──────────┘ └──────────┘ └──────────────┘</pre>
+
+<p>
+  <strong>In one sentence:</strong> static SPA on <strong>S3 + CloudFront</strong>
+  (Cloudflare Pages also works and is cheaper), the FastAPI app as a <strong>single
+  small container on ECS Fargate behind an ALB</strong>, the DuckDB file pulled from
+  <strong>S3</strong>, LLM calls pointed at <strong>Amazon Bedrock</strong>, and the
+  one genuinely external dependency (Perplexity) kept as-is with its key in Secrets
+  Manager.
+</p>
+
+<h3>How it deploys, step by step</h3>
+<p style="font-size:14px;">Eight steps, start to finish &mdash; each explains the <em>why</em>, not just the command.</p>
+
+<div class="flow-steps">
+
+  <div class="flow-step">
+    <div class="num">1</div>
+    <div class="body">
+      <div class="step-title">Build the DuckDB warehouse once &mdash; store the file in S3</div>
+      <div class="step-desc">The warehouse is a <strong>build artifact, not a request-time concern</strong>. Run <code>load_data.py</code> once over the ~31M rows (~2&nbsp;min); it produces a single <code>hm.duckdb</code> file, which you upload to S3. In production the container just downloads it on startup &mdash; it never rebuilds. (Locally, <code>main.py</code>&rsquo;s <code>lifespan</code> hook auto-builds it when missing; that&rsquo;s a dev convenience you lean on only off-cloud.) Re-run this step only when the source data refreshes.</div>
+<pre><span class="com"># one-time — run locally or as a CodeBuild / one-off ECS task</span>
+uv run python scripts/load_data.py          <span class="com"># builds backend/data/db/hm.duckdb</span>
+aws s3 cp backend/data/db/hm.duckdb <span class="str">s3://retail-copilot-data/warehouse/</span></pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">2</div>
+    <div class="body">
+      <div class="step-title">Containerise the backend (multi-stage Docker)</div>
+      <div class="step-desc">The app needs Prophet, SARIMA (<code>statsforecast</code>) and <code>darts</code> &mdash; libraries that need a build toolchain and produce a large package. <strong>That is exactly why this runs as a container, not a Lambda.</strong> A multi-stage build keeps the final image slim: stage&nbsp;1 compiles the heavy wheels, stage&nbsp;2 is a clean runtime carrying only the app and its installed packages. The container runs <code>uvicorn</code> serving FastAPI on port&nbsp;8000.</div>
+<pre><span class="com"># Dockerfile (multi-stage)</span>
+<span class="kw">FROM</span> python:3.12-slim <span class="kw">AS</span> build
+<span class="kw">RUN</span> apt-get update &amp;&amp; apt-get install -y build-essential
+<span class="kw">COPY</span> pyproject.toml uv.lock ./
+<span class="kw">RUN</span> pip install uv &amp;&amp; uv sync --no-dev          <span class="com"># compiles prophet / darts</span>
+
+<span class="kw">FROM</span> python:3.12-slim
+<span class="kw">COPY</span> --from=build /app/.venv /app/.venv
+<span class="kw">COPY</span> backend/ /app/
+<span class="kw">CMD</span> [<span class="str">".venv/bin/uvicorn"</span>, <span class="str">"main:app"</span>, <span class="str">"--host"</span>, <span class="str">"0.0.0.0"</span>, <span class="str">"--port"</span>, <span class="str">"8000"</span>]</pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">3</div>
+    <div class="body">
+      <div class="step-title">Push the image to ECR</div>
+      <div class="step-desc">Push the built image to Amazon ECR &mdash; the private registry ECS pulls from. This same artifact is what your CI pipeline rebuilds on every backend change (step&nbsp;8).</div>
+<pre>aws ecr create-repository --repository-name retail-copilot-api
+docker build -t retail-copilot-api .
+docker tag  retail-copilot-api:latest  ACCT.dkr.ecr.REGION.amazonaws.com/retail-copilot-api
+docker push ACCT.dkr.ecr.REGION.amazonaws.com/retail-copilot-api</pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">4</div>
+    <div class="body">
+      <div class="step-title">Run it on ECS Fargate behind an ALB</div>
+      <div class="step-desc">Create a Fargate service from that image. Start with <strong>one small task (1&nbsp;vCPU / 2&nbsp;GB)</strong> &mdash; Prophet fits are CPU-bound, so add vCPU before memory &mdash; and autoscale 1&rarr;3 on CPU. Put it behind an <strong>Application Load Balancer</strong> with health checks on <code>/health</code> (the app already exposes it), and set the ALB idle timeout to <strong>~120&ndash;300s</strong> so a full streaming run isn&rsquo;t cut off. On startup the container pulls <code>hm.duckdb</code> from S3 to local disk before it serves traffic. The task&rsquo;s <strong>IAM role</strong> grants exactly what it needs &mdash; nothing more.</div>
+<pre><span class="com"># Fargate task-role permissions (least privilege)</span>
+s3:GetObject                          <span class="com"># the warehouse file</span>
+bedrock:InvokeModel                   <span class="com"># the agent model calls</span>
+bedrock:InvokeModelWithResponseStream <span class="com"># the streamed synthesizer</span>
+secretsmanager:GetSecretValue         <span class="com"># the Perplexity key only</span></pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">5</div>
+    <div class="body">
+      <div class="step-title">Point the model calls at Bedrock &mdash; one file, no API keys</div>
+      <div class="step-desc">Today each agent calls an external LLM with a key from <code>.env</code>. <code>_llm.py</code> is the single seam &mdash; it wraps every structured call in <code>structured(messages, schema)</code>. Repoint that one file at Bedrock&rsquo;s <code>bedrock-runtime</code> <strong>Converse</strong> API. Auth is <strong>IAM via the task role</strong> from step&nbsp;4 &mdash; <strong>no model key anywhere</strong>. Structured output maps cleanly to Bedrock <strong>tool use</strong>: force one tool whose input schema is the Pydantic model, so the model must return valid structured data (stronger than JSON-mode-and-validate). The synthesizer uses <code>ConverseStream</code> for token streaming. You are <strong>not locked to Claude</strong> &mdash; any Bedrock model (Llama, Titan, Mistral&hellip;) is a one-line model-ID change.</div>
+<pre><span class="com"># backend/agents/_llm.py — the swap point</span>
+<span class="kw">import</span> boto3
+_bedrock = boto3.client(<span class="str">"bedrock-runtime"</span>)        <span class="com"># IAM auth, no API key</span>
+
+<span class="kw">def</span> <span class="fn">structured</span>(messages, schema):
+    resp = _bedrock.converse(
+        modelId=<span class="str">"anthropic.claude-..."</span>,            <span class="com"># swap model freely</span>
+        messages=messages,
+        toolConfig={<span class="str">"tools"</span>: [tool_from(schema)],   <span class="com"># forced tool = strict schema</span>
+                    <span class="str">"toolChoice"</span>: {<span class="str">"any"</span>: {}}},
+    )
+    <span class="kw">return</span> schema(**tool_args(resp))</pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">6</div>
+    <div class="body">
+      <div class="step-title">Keep Perplexity for live web search (the one external key)</div>
+      <div class="step-desc">Bedrock/Claude doesn&rsquo;t browse the live web, and there is no AWS-native drop-in for &ldquo;search the web and return citations.&rdquo; So the <strong>web research agent stays on Perplexity Sonar Pro</strong> &mdash; the one genuinely external call, and the only thing that still needs a key. Store that key in <strong>Secrets Manager</strong> (not <code>.env</code>) and inject it into the task as a secret. Net split: <strong>five agents&rsquo; model calls &rarr; Bedrock (IAM, no key); one agent&rsquo;s web search &rarr; Perplexity (one secret)</strong>.</div>
+<pre>aws secretsmanager create-secret --name retail/perplexity \
+  --secret-string <span class="str">'{"PERPLEXITY_API_KEY":"pplx-..."}'</span>
+<span class="com"># referenced by the ECS task definition as a secret env var</span></pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">7</div>
+    <div class="body">
+      <div class="step-title">Deploy the frontend to S3 + CloudFront</div>
+      <div class="step-desc">The frontend is a static Vite build &mdash; nothing to run, just files to serve. Upload <code>dist/</code> to an S3 bucket (no public access; served only through CloudFront) and front it with CloudFront. Easiest of all: put <code>/api/*</code> on the <em>same</em> CloudFront distribution pointing at the ALB, so the SPA and API share <strong>one domain</strong> &rarr; no CORS, one TLS cert, and it mirrors the app&rsquo;s Vite dev proxy (<code>/api &rarr; :8000</code>) so no frontend code changes. <strong>Note:</strong> you can also host the frontend on <strong>Cloudflare Pages</strong> instead &mdash; it&rsquo;s free, so it&rsquo;s cheaper than S3 + CloudFront (just add a CORS rule on the API, since they&rsquo;d be on different domains).</div>
+<pre><span class="kw">cd</span> frontend &amp;&amp; npm run build                 <span class="com"># produces dist/</span>
+aws s3 sync dist/ <span class="str">s3://retail-copilot-web/</span>      <span class="com"># served via CloudFront (OAC)</span>
+<span class="com"># (or host dist/ on Cloudflare Pages — free, cheaper)</span></pre>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">8</div>
+    <div class="body">
+      <div class="step-title">Wire CI/CD &mdash; two small GitHub Actions</div>
+      <div class="step-desc"><strong>Backend:</strong> on push, build the image, push to ECR, and force a new ECS deployment (Fargate rolls it out with zero downtime). <strong>Frontend:</strong> on push, Cloudflare Pages auto-deploys from the repo (or sync <code>dist/</code> to S3 and invalidate CloudFront). Two short pipelines, fully automated.</div>
+<pre><span class="com"># backend pipeline (sketch)</span>
+docker build + push  &rarr;  ECR
+aws ecs update-service --cluster retail --service api --force-new-deployment
+<span class="com"># frontend: Cloudflare Pages auto-deploys on push</span></pre>
+    </div>
+  </div>
+
+</div>
+
+<h3>What we deliberately do <em>not</em> use</h3>
+<p style="font-size:14px;">This is the part that signals judgment. All of these are available; none earn their cost/complexity here.</p>
+<div class="deploy-skip"><strong>Bedrock AgentCore</strong> &mdash; orchestration, fan-out, and the agent contracts are <em>already</em> implemented in-app with LangGraph (<code>supervisor_L.py</code>). AgentCore&rsquo;s Runtime/Memory/Gateway would duplicate that and add a managed service to pay for. Revisit only for managed agent hosting, enterprise identity, or shared long-term memory at scale.</div>
+<div class="deploy-skip"><strong>SageMaker</strong> &mdash; Prophet and SARIMA are lightweight statistical fits that run in-process in seconds. Nothing to train on a cluster, no endpoint to host.</div>
+<div class="deploy-skip"><strong>RDS / Aurora / Redshift</strong> &mdash; the data is a read-only single file with no concurrency. Embedded DuckDB is the right tool. (If the dataset grew huge or needed multi-writer concurrency, then Athena-over-S3 or Redshift would be the move.)</div>
+<div class="deploy-skip"><strong>Lambda (for the app) and EKS</strong> &mdash; Lambda fights streaming + heavy deps + long requests (fine for the one-off data-build job, not the request path); EKS is too much altitude for one stateless service.</div>
+
+<p style="font-size:14px;">
+  Session and long-term memory are covered in the two sections above &mdash; for AWS,
+  back the LangGraph checkpointer with DynamoDB or a small RDS Postgres keyed by
+  <code>thread_id</code> when you need durable cross-session memory.
+</p>
+
+<p>
+  <strong>Bottom line:</strong> one container on Fargate, one CDN, one S3 bucket of
+  data, Bedrock for inference. Boring on purpose &mdash; it streams correctly,
+  carries the heavy forecasting deps without drama, and avoids every service that
+  would add complexity without solving a problem this project actually has.
+</p>
+
 </body>
 </html>
