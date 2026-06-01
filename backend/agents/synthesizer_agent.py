@@ -18,26 +18,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-from openai import OpenAI
+from agents.llm import LLM_MODEL, get_client as _get_client, provider_completion_kwargs
 
 BACKEND_DIR = Path(__file__).parent.parent
 PROMPT_PATH = BACKEND_DIR / "prompts" / "synthesizer.txt"
 
-load_dotenv(BACKEND_DIR / ".env")
-
-MODEL = "gpt-5-mini"
 SAMPLE_ROW_LIMIT = 5
 WEB_CITATION_LIMIT = 6
-
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -212,13 +199,15 @@ def run(state: dict) -> dict:
 
     # --- Step 3: LLM call — returns markdown narrative ---
     try:
-        response = _get_client().chat.completions.create(
-            model=MODEL,
-            messages=[
+        kwargs = {
+            "model": LLM_MODEL,
+            "messages": [
                 {"role": "system", "content": load_system_prompt()},
                 {"role": "user",   "content": user_message},
             ],
-        )
+            **provider_completion_kwargs(),
+        }
+        response = _get_client().chat.completions.create(**kwargs)
     except Exception as e:
         return {"final_report": None, "error": str(e), "skipped": False}
 
@@ -250,14 +239,16 @@ def run_stream(state: dict):
 
     accumulated: list[str] = []
     try:
-        stream = _get_client().chat.completions.create(
-            model=MODEL,
-            messages=[
+        kwargs = {
+            "model": LLM_MODEL,
+            "messages": [
                 {"role": "system", "content": load_system_prompt()},
                 {"role": "user",   "content": user_message},
             ],
-            stream=True,
-        )
+            "stream": True,
+            **provider_completion_kwargs(),
+        }
+        stream = _get_client().chat.completions.create(**kwargs)
         for chunk in stream:
             if not chunk.choices:
                 continue

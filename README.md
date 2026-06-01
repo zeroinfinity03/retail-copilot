@@ -59,7 +59,6 @@ project/
 │   │   └── main.jsx
 │   ├── index.html
 │   └── package.json
-├── backend2/                        DeepSeek implementation (alternative to backend/)
 ├── design/
 │   └── systemdesign.html            Complete architecture walkthrough
 ├── LICENSE
@@ -86,9 +85,16 @@ cd backend
 cp example.env .env       # then edit .env and add your keys
 ```
 
-You need two keys:
-- `OPENAI_API_KEY` — used by every agent that calls an LLM
+Keep `.env` for keys:
+- `OPENAI_API_KEY` — used when `backend/agents/llm.py` selects OpenAI
+- `DEEPSEEK_API_KEY` — used when `backend/agents/llm.py` selects DeepSeek
 - `PERPLEXITY_API_KEY` — used by the web research agent (Sonar Pro)
+
+To switch the main LLM provider, edit `backend/agents/llm.py`:
+
+```py
+LLM_PROVIDER = "openai"      # or "deepseek"
+```
 
 **3. Install Python dependencies**
 

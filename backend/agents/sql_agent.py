@@ -10,7 +10,7 @@ Pipeline:
 Notes:
   - The LLM never touches the database. Python is the only executor.
   - Schema lives in backend/prompts/sql_agent.txt (kept in the system prompt).
-  - Requires OPENAI_API_KEY in backend/.env.
+  - Requires provider credentials in backend/.env.
 """
 
 from __future__ import annotations
@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Optional
 
 import duckdb
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel, Field
+
+from agents.llm import structured
 
 # ============================================================
 # Setup
@@ -31,8 +31,6 @@ BACKEND_DIR = Path(__file__).parent.parent
 PROMPT_PATH = BACKEND_DIR / "prompts" / "sql_agent.txt"
 DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
 
-load_dotenv(BACKEND_DIR / ".env")
-
 # Sandbox configuration
 BANNED_KEYWORDS = [
     "DROP", "DELETE", "INSERT", "UPDATE",
@@ -40,18 +38,6 @@ BANNED_KEYWORDS = [
 ]
 MAX_ROWS_RETURNED = 1000
 MAX_RETRIES = 1
-
-# LLM
-MODEL = "gpt-5-mini"   # swap to "gpt-5" if quality is insufficient, or "gpt-5-nano" for cheapest
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    """Lazy singleton — only construct when actually called."""
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -103,15 +89,13 @@ def generate_sql(task: str, error_context: Optional[str] = None) -> SQLOutput:
             f"{error_context}"
         )
 
-    response = _get_client().chat.completions.parse(
-        model=MODEL,
+    return structured(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
-        response_format=SQLOutput,
+        schema=SQLOutput,
     )
-    return response.choices[0].message.parsed
 
 
 def execute_sql(sql: str) -> dict:

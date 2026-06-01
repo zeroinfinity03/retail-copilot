@@ -53,3 +53,11 @@ design/*
 # Demo questions list — local-only walkthrough reference
 # =========================
 examples.txt
+
+# =========================
+# Personal / job-application files — NEVER commit (repo is public)
+# =========================
+email.txt
+resume.txt
+jd.txt
+support.txt

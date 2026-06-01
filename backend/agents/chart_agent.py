@@ -21,9 +21,9 @@ from typing import Literal, Optional
 
 import pandas as pd
 import plotly.express as px
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel, Field
+
+from agents.llm import structured
 
 # ============================================================
 # Setup
@@ -32,19 +32,7 @@ from pydantic import BaseModel, Field
 BACKEND_DIR = Path(__file__).parent.parent
 PROMPT_PATH = BACKEND_DIR / "prompts" / "chart_agent.txt"
 
-load_dotenv(BACKEND_DIR / ".env")
-
-MODEL = "gpt-5-mini"
 MAX_RETRIES = 1
-
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -135,15 +123,13 @@ def get_chart_spec(
             f"\n\nPrevious spec failed with this error — correct it:\n{error_context}"
         )
 
-    response = _get_client().chat.completions.parse(
-        model=MODEL,
+    return structured(
         messages=[
             {"role": "system", "content": load_system_prompt()},
             {"role": "user", "content": user_msg},
         ],
-        response_format=ChartSpec,
+        schema=ChartSpec,
     )
-    return response.choices[0].message.parsed
 
 
 def validate_spec(spec: ChartSpec, columns: list[str]) -> Optional[str]:

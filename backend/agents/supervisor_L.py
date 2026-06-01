@@ -46,8 +46,6 @@ import sys
 from pathlib import Path
 from typing import Literal, Optional, TypedDict
 
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel
 
 BACKEND_DIR = Path(__file__).parent.parent
@@ -59,6 +57,7 @@ from agents.web_research_agent import run as run_web
 from agents.chart_agent import run as run_chart
 from agents.forecasting_agent import run as run_forecast
 from agents.synthesizer_agent import run as run_synthesizer
+from agents.llm import structured
 
 try:
     from langgraph.graph import StateGraph, END
@@ -69,17 +68,6 @@ except ImportError as e:
 
 
 PROMPT_PATH = BACKEND_DIR / "prompts" / "supervisor.txt"
-load_dotenv(BACKEND_DIR / ".env")
-
-MODEL = "gpt-5-mini"
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -114,15 +102,13 @@ class AgentState(TypedDict, total=False):
 # ============================================================
 
 def make_plan(user_query: str) -> Plan:
-    response = _get_client().chat.completions.parse(
-        model=MODEL,
+    return structured(
         messages=[
             {"role": "system", "content": PROMPT_PATH.read_text(encoding="utf-8")},
             {"role": "user", "content": user_query},
         ],
-        response_format=Plan,
+        schema=Plan,
     )
-    return response.choices[0].message.parsed
 
 
 # ============================================================

@@ -24,10 +24,8 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel
 
 # Make `from agents.X import ...` work whether you run from backend/ or elsewhere
@@ -40,19 +38,9 @@ from agents.web_research_agent import run as run_web
 from agents.chart_agent import run as run_chart
 from agents.forecasting_agent import run as run_forecast
 from agents.synthesizer_agent import run as run_synthesizer
+from agents.llm import structured
 
 PROMPT_PATH = BACKEND_DIR / "prompts" / "supervisor.txt"
-load_dotenv(BACKEND_DIR / ".env")
-
-MODEL = "gpt-5-mini"
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -75,15 +63,13 @@ class Plan(BaseModel):
 
 def make_plan(user_query: str) -> Plan:
     """One LLM call: NL question -> ordered list of (agent, task)."""
-    response = _get_client().chat.completions.parse(
-        model=MODEL,
+    return structured(
         messages=[
             {"role": "system", "content": PROMPT_PATH.read_text(encoding="utf-8")},
             {"role": "user", "content": user_query},
         ],
-        response_format=Plan,
+        schema=Plan,
     )
-    return response.choices[0].message.parsed
 
 
 # ============================================================

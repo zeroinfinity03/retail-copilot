@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "dart>=1.0",
     "darts>=0.44.1",
     "duckdb>=1.5.3",
     "fastapi[standard]>=0.136.3",

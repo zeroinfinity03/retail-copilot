@@ -39,8 +39,6 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dotenv import load_dotenv
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
 # Allow `from agents.X import ...` from anywhere
@@ -49,24 +47,14 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from agents.sql_agent import run as run_sql
+from agents.llm import structured
 
 PROMPT_PATH = BACKEND_DIR / "prompts" / "forecasting_agent.txt"
-load_dotenv(BACKEND_DIR / ".env")
 
-MODEL = "gpt-5-mini"
 HOLDOUT_DAYS = 30
 MIN_HISTORY_DAYS = 90
 DEFAULT_HORIZON = 90
 MAX_HORIZON = 180
-
-_client: Optional[OpenAI] = None
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if _client is None:
-        _client = OpenAI()
-    return _client
 
 
 # ============================================================
@@ -114,15 +102,13 @@ class ForecastSpec(BaseModel):
 def make_forecast_spec(task: str) -> ForecastSpec:
     """One LLM call: NL task -> ForecastSpec."""
     system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-    response = _get_client().chat.completions.parse(
-        model=MODEL,
+    return structured(
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": task},
         ],
-        response_format=ForecastSpec,
+        schema=ForecastSpec,
     )
-    return response.choices[0].message.parsed
 
 
 # ============================================================
