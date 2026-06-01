@@ -1893,27 +1893,63 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
 </table>
 
 <h3>Recommended architecture</h3>
-<pre class="code-snippet">                         ┌─────────────────────────────┐
-   user (browser)  ───▶   │     S3 + CloudFront (CDN)    │   static SPA  (Cloudflare Pages
-                         │                             │    also works — cheaper)
-                         └──────────────┬──────────────┘
-                                        │  /api/*   (HTTPS, streaming SSE)
-                                        ▼
-                              ┌────────────────────┐
-                              │  Application LB     │   (ALB, ACM cert)
-                              └─────────┬──────────┘
-                                        ▼
-                          ┌──────────────────────────────┐
-                          │     ECS Fargate service       │
-                          │  FastAPI + uvicorn (Docker)   │
-                          │  LangGraph + Prophet / SARIMA │
-                          └───┬───────────┬───────────┬───┘
-                  startup pull│    IAM    │           │ HTTPS
-                   hm.duckdb  ▼   role    ▼           ▼
-                       ┌──────────┐ ┌──────────┐ ┌──────────────┐
-                       │    S3    │ │ Bedrock  │ │  Perplexity  │
-                       │warehouse │ │ (Claude) │ │  Sonar Pro   │
-                       └──────────┘ └──────────┘ └──────────────┘</pre>
+<div style="background:white; border-radius:10px; padding:24px 20px 14px; box-shadow:0 2px 8px rgba(0,0,0,0.06); margin:20px 0;">
+  <svg viewBox="0 0 900 525" style="width:100%; max-width:900px; display:block; margin:0 auto; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="dep-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+      </marker>
+    </defs>
+
+    <!-- User -->
+    <rect x="330" y="14" width="240" height="46" rx="12" fill="#fff" stroke="#222" stroke-width="2"/>
+    <text x="450" y="42" text-anchor="middle" font-size="13" fill="#222">👤  User (browser)</text>
+    <line x1="450" y1="60" x2="450" y2="90" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+
+    <!-- CDN: CloudFront + S3 (static) -->
+    <rect x="240" y="92" width="420" height="62" rx="12" fill="#fff5e9" stroke="#e67e22" stroke-width="2"/>
+    <text x="450" y="119" text-anchor="middle" font-size="13.5" font-weight="700" fill="#a0560f">☁️  CloudFront + S3 — static SPA (CDN)</text>
+    <text x="450" y="138" text-anchor="middle" font-size="11" fill="#7a5a36">routes /api/* to the ALB · or Cloudflare Pages (cheaper)</text>
+    <line x1="450" y1="154" x2="450" y2="190" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+    <text x="462" y="178" text-anchor="start" font-size="11" fill="#666" font-style="italic">/api/* — HTTPS, streaming SSE</text>
+
+    <!-- ALB -->
+    <rect x="290" y="192" width="320" height="54" rx="12" fill="#eef6fb" stroke="#4a90e2" stroke-width="2"/>
+    <text x="450" y="217" text-anchor="middle" font-size="13.5" font-weight="700" fill="#2c5d8b">⚖️  Application Load Balancer</text>
+    <text x="450" y="235" text-anchor="middle" font-size="11" fill="#4a6a86">ACM cert · long idle timeout (streaming)</text>
+    <line x1="450" y1="246" x2="450" y2="282" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+
+    <!-- ECS Fargate (the app) -->
+    <rect x="240" y="284" width="420" height="76" rx="12" fill="#f3eefb" stroke="#9b59b6" stroke-width="2"/>
+    <text x="450" y="311" text-anchor="middle" font-size="13.5" font-weight="700" fill="#6c3483">🐳  ECS Fargate — FastAPI + uvicorn</text>
+    <text x="450" y="330" text-anchor="middle" font-size="11" fill="#7d5a91">LangGraph supervisor · Prophet / SARIMA</text>
+    <text x="450" y="347" text-anchor="middle" font-size="11" fill="#7d5a91">container (Docker) · 1 vCPU / 2 GB · autoscale</text>
+
+    <!-- fan-out arrows to backing services -->
+    <line x1="370" y1="360" x2="200" y2="430" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+    <line x1="450" y1="360" x2="450" y2="430" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+    <line x1="530" y1="360" x2="700" y2="430" stroke="#222" stroke-width="2" marker-end="url(#dep-arr)"/>
+    <text x="214" y="398" text-anchor="middle" font-size="10.5" fill="#666" font-style="italic">startup: pull</text>
+    <text x="214" y="411" text-anchor="middle" font-size="10.5" fill="#666" font-style="italic">hm.duckdb</text>
+    <text x="462" y="399" text-anchor="start" font-size="10.5" fill="#666" font-style="italic">IAM role</text>
+    <text x="648" y="399" text-anchor="middle" font-size="10.5" fill="#666" font-style="italic">HTTPS</text>
+
+    <!-- S3 warehouse -->
+    <rect x="50" y="432" width="252" height="72" rx="10" fill="#d4ede4" stroke="#3f8624" stroke-width="2"/>
+    <text x="176" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#2e6018">📦  S3 — warehouse</text>
+    <text x="176" y="486" text-anchor="middle" font-size="10.5" fill="#3f7a28">hm.duckdb (read-only)</text>
+
+    <!-- Amazon Bedrock -->
+    <rect x="324" y="432" width="252" height="72" rx="10" fill="#fff4d4" stroke="#ff9900" stroke-width="2"/>
+    <text x="450" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#9a6800">🧠  Amazon Bedrock</text>
+    <text x="450" y="486" text-anchor="middle" font-size="10.5" fill="#9a6800">Claude — model calls (IAM, no key)</text>
+
+    <!-- Perplexity -->
+    <rect x="598" y="432" width="252" height="72" rx="10" fill="#e0e4f0" stroke="#5b6ee0" stroke-width="2"/>
+    <text x="724" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#3a48a8">🔎  Perplexity — Sonar Pro</text>
+    <text x="724" y="486" text-anchor="middle" font-size="10.5" fill="#4a55b0">web search (one secret)</text>
+  </svg>
+</div>
 
 <p>
   <strong>In one sentence:</strong> static SPA on <strong>S3 + CloudFront</strong>
