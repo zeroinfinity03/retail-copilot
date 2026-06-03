@@ -44,8 +44,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 # Plain Python supervisor (faster to test). Swap to supervisor_L for LangGraph version.
-# from agents.supervisor_P import run as run_pipeline
-from agents.supervisor_L import run as run_pipeline
+from agents.supervisor_P import run as run_pipeline
+# from agents.supervisor_L import run as run_pipeline
 from agents.synthesizer_agent import run_stream as run_synthesizer_stream
 
 
@@ -231,7 +231,7 @@ async def chat(req: ChatRequest):
     # Stage 1: Run the full specialist pipeline (sql / web / forecast / chart) on a
     # worker thread. skip_synthesizer=True tells the supervisor to NOT call the
     # synthesizer node — we'll stream it ourselves below.
-    state = await asyncio.to_thread(run_pipeline, user_query, True)
+    state = await asyncio.to_thread(run_pipeline, user_query, skip_synthesizer=True)
 
     charts = _chart_payloads(state)
     sources = ((state.get("web_results") or {}).get("citations") or [])[:6]
