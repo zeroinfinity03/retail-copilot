@@ -669,7 +669,7 @@ The supervisor orchestrates; the rest do the actual work.
         <div class="step-title"><code>main.py</code> validates and dispatches to a worker thread</div>
         <div class="step-desc">FastAPI validates the body against a Pydantic <code>ChatRequest</code> schema. Because the agent pipeline is synchronous, the handler ships the work onto a worker thread via <code>asyncio.to_thread</code>, freeing the event loop for other requests.</div>
 <pre><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
-<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest):
     user_query = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>][-1].content
     state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query)</pre>
       </div>
@@ -761,7 +761,7 @@ max(t_code, t_research, t_forecast)  ≈  max(3, 5, 7)  =  <span class="str">7 s
       <div class="num">7</div>
       <div class="body">
         <div class="step-title">Synthesizer composes the final narrative</div>
-        <div class="step-desc">All specialist outputs are now in <code>state</code>. The synthesizer reads every slice, calls one more LLM, and returns the grounded markdown narrative. The supervisor then returns the populated <code>state</code> dict to <code>main.py</code>, which packages it into a <code>ChatResponse</code> for the frontend.</div>
+        <div class="step-desc">All specialist outputs are now in <code>state</code>. The supervisor returns the populated <code>state</code> dict to <code>main.py</code>, which then runs the synthesizer and <strong>streams</strong> its grounded markdown narrative to the frontend token-by-token over <strong>SSE</strong> (Server-Sent Events), followed by a final <code>complete</code> event carrying any chart.</div>
 <pre>synth_out = run_synthesizer(state)
 state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"final_report"</span>]
 <span class="kw">return</span> state   <span class="com"># back to main.py</span></pre>
@@ -1614,7 +1614,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">5</div>
       <div class="body">
         <div class="step-title">Pack the result dict and return to the supervisor</div>
-        <div class="step-desc">The agent returns <code>chart_type</code>, <code>title</code>, <code>caption</code>, the self-contained <code>figure_html</code> and <code>figure_json</code>, plus any <code>error</code>. The supervisor stores it in <code>state["chart_results"]</code>; <code>main.py</code> later pulls <code>figure_html</code> into the <code>ChatResponse</code> so the frontend can embed it.</div>
+        <div class="step-desc">The agent returns <code>chart_type</code>, <code>title</code>, <code>caption</code>, the self-contained <code>figure_html</code> and <code>figure_json</code>, plus any <code>error</code>. The supervisor stores it in <code>state["chart_results"]</code>; <code>main.py</code> later sends <code>figure_html</code> in the final SSE <code>complete</code> event so the frontend can embed it.</div>
       </div>
     </div>
 
@@ -1732,7 +1732,7 @@ final_report = response.choices[0].message.content</pre>
       <div class="num">4</div>
       <div class="body">
         <div class="step-title">Pack result and return to the supervisor</div>
-        <div class="step-desc">The result dict has three fields: <code>final_report</code> (markdown), <code>error</code>, <code>skipped</code> (bool). Supervisor stores them in <code>state["final_report"]</code>, <code>state["synthesizer_skipped"]</code>, <code>state["synthesizer_error"]</code>. <code>main.py</code> then sends the markdown to the frontend as the <code>text</code> field of <code>ChatResponse</code> &mdash; or, if synthesis was skipped/errored, it falls back to a section-dump format built from the raw specialist outputs.</div>
+        <div class="step-desc">The result dict has three fields: <code>final_report</code> (markdown), <code>error</code>, <code>skipped</code> (bool). Supervisor stores them in <code>state["final_report"]</code>, <code>state["synthesizer_skipped"]</code>, <code>state["synthesizer_error"]</code>. <code>main.py</code> then streams the markdown to the frontend as SSE <code>text</code> events (token by token) &mdash; or, if synthesis was skipped/errored, it falls back to a section-dump format built from the raw specialist outputs.</div>
       </div>
     </div>
 
@@ -1816,7 +1816,7 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
     thread_id: <span class="kw">str</span>   <span class="com"># NEW — sent by the frontend (localStorage UUID)</span>
 
 <span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
-<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest) -&gt; ChatResponse:
+<span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest):
     user_query = req.messages[-1].content
     state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, req.thread_id)</pre>
 
