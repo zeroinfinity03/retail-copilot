@@ -252,30 +252,38 @@ department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy mat
     the synthesizer has no signal to flag the anomaly.
 
 12. Schema / metadata questions ("what tables", "columns of each table",
-    "database details", "how many rows and columns"): use these EXACT
-    patterns, and NEVER emit multiple statements separated by ";".
-      - Columns of the tables:
-          SELECT table_name, column_name, data_type
-          FROM information_schema.columns
-          WHERE table_name IN ('customers', 'articles', 'transactions')
-          ORDER BY table_name, ordinal_position
-      - Row count per table:
-          SELECT 'customers' AS table_name, COUNT(*) AS rows FROM customers
-          UNION ALL SELECT 'articles', COUNT(*) FROM articles
-          UNION ALL SELECT 'transactions', COUNT(*) FROM transactions
-      - How many ROWS AND COLUMNS per table (use this when the question asks
-        for both counts at once):
-          SELECT t.table_name, t.row_count,
-                 (SELECT COUNT(*) FROM information_schema.columns c
-                  WHERE c.table_name = t.table_name) AS column_count
-          FROM (
-            SELECT 'customers' AS table_name, (SELECT COUNT(*) FROM customers) AS row_count
-            UNION ALL SELECT 'articles',     (SELECT COUNT(*) FROM articles)
-            UNION ALL SELECT 'transactions', (SELECT COUNT(*) FROM transactions)
-          ) t
-    WHY: DESCRIBE and bare table_name references break when stitched into
-    one statement. A single information_schema query (and a UNION of
-    COUNT(*) for row counts) answers reliably in one valid statement.
+    "database details", "how many rows / columns", or ANY mix of these):
+    return ONE query that gives the FULL picture per table, and let the
+    answer use whatever part the user asked for. You CANNOT return more
+    than one result set: the runner fetches a single result, so NEVER emit
+    multiple statements separated by ";". Fold everything into one query.
+
+    The recipe generalizes to any "tell me about the tables" question:
+    structure comes from information_schema.columns, row counts come from a
+    UNION of COUNT(*) per table (information_schema has no row counts), and
+    STRING_AGG folds all of a table's column names into one cell. One
+    query, one result, every facet (tables + rows + columns + names) at once:
+
+          SELECT c.table_name,
+                 rc.row_count,
+                 COUNT(*) AS column_count,
+                 STRING_AGG(c.column_name, ', ' ORDER BY c.ordinal_position) AS columns
+          FROM information_schema.columns c
+          JOIN (
+            SELECT 'customers' AS table_name, COUNT(*) AS row_count FROM customers
+            UNION ALL SELECT 'articles',     COUNT(*) FROM articles
+            UNION ALL SELECT 'transactions', COUNT(*) FROM transactions
+          ) rc ON rc.table_name = c.table_name
+          WHERE c.table_name IN ('customers', 'articles', 'transactions')
+          GROUP BY c.table_name, rc.row_count
+          ORDER BY c.table_name
+
+    For a narrower ask (only column names, or only row counts), keep the
+    same shape and drop the parts you do not need. Never use DESCRIBE or a
+    multi-statement script; always use this single-query form.
+    WHY: one information_schema query, joined to a UNION of COUNT(*), with
+    STRING_AGG for the names, answers ANY schema question completely in one
+    valid statement, with no second query and no dropped facet.
 </rules>
 
 
@@ -352,4 +360,5 @@ Example 6 (period-over-period)
   }
 
 </examples>
+
 
