@@ -490,8 +490,8 @@ A multi-agent assistant for retail analytics.
 </p>
 
 <p>
-A user sends a query in natural language. A supervisor agent decomposes
-the question into sub-tasks and dispatches them in parallel to specialist
+A user sends a query in natural language. A supervisor agent decides which
+specialists to call and dispatches the full question to them in parallel,
 agents capable of <strong>market research</strong>,
 <strong>code execution</strong>, <strong>generating dashboards</strong>,
 and <strong>doing forecasting</strong>. Once the specialists return, a
@@ -797,7 +797,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code> &mdash; a natural-language sub-task from the supervisor.<br>
+        <code>task: str</code> &mdash; the user's full question (the supervisor only decides which agents to call, not what each one does).<br>
         <em>e.g., "Top 5 Ladieswear sellers by revenue, Q3 2020"</em>
       </div>
     </div>
@@ -1053,7 +1053,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
       <div class="num">1</div>
       <div class="body">
         <div class="step-title">Supervisor sends a task &rarr; <code>generate_sql()</code> LLM call</div>
-        <div class="step-desc">A natural-language sub-task arrives (e.g., <em>"Top 5 Ladieswear sellers last quarter"</em>). The agent loads its system prompt, combines it with the task, and makes a single structured-output call that returns a typed <code>SQLOutput</code> object. The LLM never touches the database.</div>
+        <div class="step-desc">The full user question arrives (e.g., <em>"Top 5 Ladieswear sellers last quarter"</em>). The agent loads its system prompt (which tells it to handle only the data part), combines it with the question, and makes a single structured-output call that returns a typed <code>SQLOutput</code> object. The LLM never touches the database.</div>
 <pre>response = client.chat.completions.parse(
     model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
@@ -1139,7 +1139,7 @@ result_df = con.execute(sql).fetchdf()</pre>
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code> &mdash; a natural-language market-research sub-task from the supervisor.<br>
+        <code>task: str</code> &mdash; the user's full question (the supervisor only decided this agent should run; the prompt scopes it to the market-research part).<br>
         <em>e.g., "2026 fashion retail trends"</em>
       </div>
     </div>
@@ -1164,7 +1164,7 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="num">1</div>
       <div class="body">
         <div class="step-title">Build messages: system prompt + user task</div>
-        <div class="step-desc">The agent loads its system prompt from disk (which defines its role as an external market researcher) and appends the supervisor's sub-task as the user message. Standard OpenAI <code>messages</code> format because Sonar Pro is OpenAI-compatible.</div>
+        <div class="step-desc">The agent loads its system prompt from disk (which defines its role as an external market researcher) and appends the full user question as the user message. Standard OpenAI <code>messages</code> format because Sonar Pro is OpenAI-compatible.</div>
 <pre>messages = [
     {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: load_system_prompt()},
     {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: task},
@@ -1259,7 +1259,7 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code> &mdash; a natural-language forecasting sub-task from the supervisor.<br>
+        <code>task: str</code> &mdash; the user's full question (the supervisor only decided this agent should run; the prompt scopes it to the forecasting part).<br>
         <em>e.g., "Project Ladieswear daily revenue for next 90 days"</em>
       </div>
     </div>
