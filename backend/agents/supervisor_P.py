@@ -108,7 +108,9 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
     parallel_jobs: dict = {}
     for step in plan.steps:
         if step.agent in ("sql", "web", "forecast"):
-            parallel_jobs[step.agent] = step.task
+            # each agent gets the full user question (not a rewritten sub-task);
+            # the supervisor only decided WHICH agents to call.
+            parallel_jobs[step.agent] = user_query
 
     if parallel_jobs:
         if verbose:

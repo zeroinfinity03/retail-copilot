@@ -115,14 +115,6 @@ def make_plan(user_query: str) -> Plan:
 # Helpers
 # ============================================================
 
-def _task_for(state: AgentState, agent: str) -> str:
-    plan = state.get("plan") or {"steps": []}
-    for s in plan["steps"]:
-        if s["agent"] == agent:
-            return s["task"]
-    return state.get("user_query", "")
-
-
 def _agents_in_plan(state: AgentState) -> set[str]:
     plan = state.get("plan") or {"steps": []}
     return {s["agent"] for s in plan["steps"]}
@@ -141,15 +133,17 @@ def supervisor_node(state: AgentState) -> dict:
 
 
 def sql_node(state: AgentState) -> dict:
-    return {"sql_results": run_sql(_task_for(state, "sql"))}
+    # Each agent gets the actual user question (the supervisor only decides
+    # WHICH agents to call; it does not rewrite the question into a sub-task).
+    return {"sql_results": run_sql(state["user_query"])}
 
 
 def web_node(state: AgentState) -> dict:
-    return {"web_results": run_web(_task_for(state, "web"))}
+    return {"web_results": run_web(state["user_query"])}
 
 
 def forecast_node(state: AgentState) -> dict:
-    return {"forecast_results": run_forecast(_task_for(state, "forecast"))}
+    return {"forecast_results": run_forecast(state["user_query"])}
 
 
 def chart_node(state: AgentState) -> dict:

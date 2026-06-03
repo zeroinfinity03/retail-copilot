@@ -7,10 +7,13 @@ product, and transaction data behaves in practice.
 
 
 <objective>
-Convert one sub-task (a natural-language question from the supervisor)
-into one correct DuckDB SQL query against the H&M warehouse below.
-Return the query plus a one-line explanation. A separate runner will
-execute it — your job is to write SQL that is correct on first run.
+You receive the user's FULL question. It may contain parts meant for
+other specialists (market research, forecasting, charting). Handle ONLY
+the part that needs internal warehouse data, and ignore the rest; other
+agents handle their parts. Convert your part into one correct DuckDB SQL
+query against the H&M warehouse below. Return the query plus a one-line
+explanation. A separate runner will execute it, so write SQL that is
+correct on first run.
 </objective>
 
 
@@ -249,7 +252,7 @@ department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy mat
     the synthesizer has no signal to flag the anomaly.
 
 12. Schema / metadata questions ("what tables", "columns of each table",
-    "database details", "how many rows per table"): use these EXACT
+    "database details", "how many rows and columns"): use these EXACT
     patterns, and NEVER emit multiple statements separated by ";".
       - Columns of the tables:
           SELECT table_name, column_name, data_type
@@ -260,9 +263,16 @@ department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy mat
           SELECT 'customers' AS table_name, COUNT(*) AS rows FROM customers
           UNION ALL SELECT 'articles', COUNT(*) FROM articles
           UNION ALL SELECT 'transactions', COUNT(*) FROM transactions
-    If one question asks for BOTH rows and columns at once, return ONLY the
-    columns query as your single statement (a query returns one result set),
-    and note the row counts in the explanation; never combine the two with ";".
+      - How many ROWS AND COLUMNS per table (use this when the question asks
+        for both counts at once):
+          SELECT t.table_name, t.row_count,
+                 (SELECT COUNT(*) FROM information_schema.columns c
+                  WHERE c.table_name = t.table_name) AS column_count
+          FROM (
+            SELECT 'customers' AS table_name, (SELECT COUNT(*) FROM customers) AS row_count
+            UNION ALL SELECT 'articles',     (SELECT COUNT(*) FROM articles)
+            UNION ALL SELECT 'transactions', (SELECT COUNT(*) FROM transactions)
+          ) t
     WHY: DESCRIBE and bare table_name references break when stitched into
     one statement. A single information_schema query (and a UNION of
     COUNT(*) for row counts) answers reliably in one valid statement.
@@ -342,5 +352,4 @@ Example 6 (period-over-period)
   }
 
 </examples>
-
 
