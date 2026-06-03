@@ -1711,7 +1711,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">2</div>
       <div class="body">
         <div class="step-title">Build the user message &mdash; format each specialist's output</div>
-        <div class="step-desc">Every specialist's full output would blow the LLM's token budget (figure HTML alone is 50KB+). The synthesizer slims each one: SQL gets first 5 rows + row count, web gets the answer + first 6 citations, forecast gets the series label + MAPEs + 3 sample rows from the values table, chart gets just title + caption.</div>
+        <div class="step-desc">Every specialist's full output would blow the LLM's token budget (figure HTML alone is 50KB+). The synthesizer slims each one: SQL gets row_count + all rows when the result is small (<=50, e.g. a schema dump) and just the first 5 otherwise, web gets the answer + first 6 citations, forecast gets the series label + MAPEs + 3 sample rows from the values table, chart gets just title + caption.</div>
 <pre>user_message = (
     <span class="str">f"USER QUESTION: {</span>state[<span class="str">"user_query"</span>]<span class="str">}\n\n"</span>
     <span class="str">f"SQL DATA:\n{</span>_format_sql_block(state[<span class="str">"sql_results"</span>])<span class="str">}\n\n"</span>
@@ -1723,8 +1723,8 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
 <pre>┌──────────────┬─────────────────────────────────────────────┬──────────────────────────────────────┐
 │ Specialist   │ Full output                                  │ What goes into the LLM block         │
 ├──────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
-│ SQL          │ sql, explanation, columns, rows (up to 1000),│ Explanation + row_count + sample of  │
-│              │   row_count, error                            │   first 5 rows                       │
+│ SQL          │ sql, explanation, columns, rows (up to 1000),│ Explanation + row_count + all rows   │
+│              │   row_count, error                            │   if <=50, else first 5              │
 │ Web          │ answer (markdown), citations (list),         │ Answer text + first 6 citations      │
 │              │   search_queries_run, model, error            │                                      │
 │ Forecast     │ historical (long array), prophet_forecast,   │ Series label + horizon + MAPEs +     │
