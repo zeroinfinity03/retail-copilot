@@ -24,6 +24,7 @@ BACKEND_DIR = Path(__file__).parent.parent
 PROMPT_PATH = BACKEND_DIR / "prompts" / "synthesizer.txt"
 
 SAMPLE_ROW_LIMIT = 5
+FULL_ROWS_LIMIT = 50   # if the result has <= this many rows, send them all to the synth (e.g. a schema dump)
 WEB_CITATION_LIMIT = 6
 
 
@@ -45,8 +46,15 @@ def _format_sql_block(sql: Optional[dict]) -> str:
     parts = []
     if sql.get("explanation"):
         parts.append(sql["explanation"])
-    parts.append(f"Row count: {sql.get('row_count', 0)}")
-    parts.append(f"Sample rows: {sql['rows'][:SAMPLE_ROW_LIMIT]}")
+    rows = sql["rows"]
+    rc = sql.get("row_count", len(rows))
+    parts.append(f"Row count: {rc}")
+    if rc <= FULL_ROWS_LIMIT:
+        # small result (e.g. a schema/metadata dump) -> send every row so the
+        # synthesizer sees all of it, not just the first table.
+        parts.append(f"Rows: {rows}")
+    else:
+        parts.append(f"Sample rows (first {SAMPLE_ROW_LIMIT} of {rc}): {rows[:SAMPLE_ROW_LIMIT]}")
     return "\n".join(parts)
 
 
