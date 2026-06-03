@@ -1218,7 +1218,7 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="num">4</div>
       <div class="body">
         <div class="step-title">Return result dict to supervisor</div>
-        <div class="step-desc">The agent returns a consistent dict shape on both the happy path and the failure path &mdash; <code>answer</code>, <code>citations</code>, <code>search_queries_run</code>, <code>model</code>, <code>error</code>. Supervisor stores it in <code>state["web_results"]</code> and the synthesizer reads it later, listing the citation URLs as a Sources section at the end of its answer.</div>
+        <div class="step-desc">The agent returns a consistent dict shape on both the happy path and the failure path &mdash; <code>answer</code>, <code>citations</code>, <code>search_queries_run</code>, <code>model</code>, <code>error</code>. Supervisor stores it in <code>state["web_results"]</code>. The synthesizer never sees the URLs; <code>main.py</code> sends them in the SSE <code>complete</code> event and the frontend renders them as a Sources list below the charts.</div>
 <pre><span class="com"># Success path</span>
 <span class="kw">return</span> {
     <span class="str">"answer"</span>: answer,
@@ -1637,7 +1637,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">5</div>
       <div class="body">
         <div class="step-title">Pack the result dict and return to the supervisor</div>
-        <div class="step-desc">The agent returns <code>chart_type</code>, <code>title</code>, <code>caption</code>, the self-contained <code>figure_html</code> and <code>figure_json</code>, plus any <code>error</code>. The supervisor stores it in <code>state["chart_results"]</code>; <code>main.py</code> later sends <code>figure_html</code> in the final SSE <code>complete</code> event so the frontend can embed it.</div>
+        <div class="step-desc">The agent returns <code>chart_type</code>, <code>title</code>, <code>caption</code>, the self-contained <code>figure_html</code> and <code>figure_json</code>, plus any <code>error</code>. The supervisor stores it in <code>state["chart_results"]</code>; <code>main.py</code> later includes <code>figure_html</code> in the <code>charts</code> array of the final SSE <code>complete</code> event (chart-agent chart first, forecast chart after) so the frontend embeds each one.</div>
       </div>
     </div>
 
@@ -1711,7 +1711,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">2</div>
       <div class="body">
         <div class="step-title">Build the user message &mdash; format each specialist's output</div>
-        <div class="step-desc">Every specialist's full output would blow the LLM's token budget (figure HTML alone is 50KB+). The synthesizer slims each one: SQL gets row_count + all rows when the result is small (<=50, e.g. a schema dump) and just the first 5 otherwise, web gets the answer + first 6 citations, forecast gets the series label + MAPEs + 3 sample rows from the values table, chart gets just title + caption.</div>
+        <div class="step-desc">Every specialist's full output would blow the LLM's token budget (figure HTML alone is 50KB+). The synthesizer slims each one: SQL gets row_count + all rows when the result is small (<=50, e.g. a schema dump) and just the first 5 otherwise, web gets just the answer text (no URLs; the app renders sources after the charts), forecast gets the series label + MAPEs + 3 sample rows from the values table, chart gets just title + caption.</div>
 <pre>user_message = (
     <span class="str">f"USER QUESTION: {</span>state[<span class="str">"user_query"</span>]<span class="str">}\n\n"</span>
     <span class="str">f"SQL DATA:\n{</span>_format_sql_block(state[<span class="str">"sql_results"</span>])<span class="str">}\n\n"</span>
@@ -1725,7 +1725,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
 ├──────────────┼─────────────────────────────────────────────┼──────────────────────────────────────┤
 │ SQL          │ sql, explanation, columns, rows (up to 1000),│ Explanation + row_count + all rows   │
 │              │   row_count, error                            │   if <=50, else first 5              │
-│ Web          │ answer (markdown), citations (list),         │ Answer text + first 6 citations      │
+│ Web          │ answer (markdown), citations (list),         │ Answer text only (no URLs)           │
 │              │   search_queries_run, model, error            │                                      │
 │ Forecast     │ historical (long array), prophet_forecast,   │ Series label + horizon + MAPEs +     │
 │              │   sarima_forecast, ensemble_forecast,         │   first/mid/end 3-row sample of      │
@@ -1742,7 +1742,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Single LLM call &mdash; returns free-form markdown narrative</div>
-        <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, list web sources as a Sources section at the end, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
+        <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, write no source URLs since the app renders the sources after the charts, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
 <pre>response = client.chat.completions.create(
     model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
