@@ -667,11 +667,20 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">2</div>
       <div class="body">
         <div class="step-title"><code>main.py</code> validates and dispatches to a worker thread</div>
-        <div class="step-desc">FastAPI validates the body against a Pydantic <code>ChatRequest</code> schema. Because the agent pipeline is synchronous, the handler ships the work onto a worker thread via <code>asyncio.to_thread</code>, freeing the event loop for other requests.</div>
-<pre><span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
+        <div class="step-desc">FastAPI validates the incoming JSON against the Pydantic <code>ChatRequest</code> schema below &mdash; a list of <code>Message</code> objects, each with a <code>role</code> and <code>content</code>. A malformed body is rejected with <code>422</code> before the handler runs. The handler then pulls the latest user message and ships the <strong>synchronous</strong> agent pipeline onto a worker thread via <code>asyncio.to_thread</code> (the <code>True</code> tells the supervisor to skip the synthesizer, which <code>main.py</code> streams itself), keeping the event loop free. Finally it returns a <code>StreamingResponse</code> that streams the synthesizer tokens and the chart to the frontend over <strong>SSE</strong>.</div>
+<pre><span class="kw">class</span> Message(BaseModel):
+    role: <span class="kw">str</span>
+    content: <span class="kw">str</span>
+
+<span class="kw">class</span> ChatRequest(BaseModel):       <span class="com"># FastAPI validates the body against this</span>
+    messages: <span class="kw">list</span>[Message]
+
+<span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
 <span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest):
     user_query = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>][-1].content
-    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query)</pre>
+    <span class="com"># True = skip the synthesizer here; main.py streams it itself below</span>
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, <span class="kw">True</span>)
+    <span class="kw">return</span> StreamingResponse(event_generator(), media_type=<span class="str">"text/event-stream"</span>)</pre>
       </div>
     </div>
 
