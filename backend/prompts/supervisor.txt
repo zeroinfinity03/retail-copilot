@@ -92,6 +92,11 @@ sequence of specialist agents, each handling one focused sub-task.
       - "which article", "best sellers", "product mix"        → articles (often joined to transactions)
       - "which day", "how many transactions", "channel mix"   → transactions
       - vague "which row / record / entity has the most…"     → transactions grouped by the most plausible entity (customer_id, article_id, or t_dat — pick whichever the phrasing leans toward; default to customer_id)
+    Schema / metadata questions ("database details", "what data do you
+    have", "what tables", "describe the warehouse", "our database",
+    "our tables") ALSO go to SQL: emit a step that describes the
+    available tables and their key columns. Never answer these with
+    "I have no data".
     NEVER refuse a question just because the user didn't write
     "our db", "warehouse", or a table name. NEVER ask for
     clarification on vague-but-on-topic questions — emit a SQL

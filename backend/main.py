@@ -106,10 +106,6 @@ def format_table(columns: list[str], rows: list[dict], max_rows: int = 10) -> st
 def format_state_as_markdown(state: dict) -> str:
     parts: list[str] = []
 
-    plan = state.get("plan") or {}
-    if plan.get("rationale"):
-        parts.append(f"**Plan:** {plan['rationale']}\n")
-
     sql = state.get("sql_results") or {}
     if sql and (sql.get("rows") or sql.get("error") or sql.get("explanation")):
         parts.append("### 🗄  Internal data\n")
