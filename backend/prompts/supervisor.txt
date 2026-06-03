@@ -10,9 +10,12 @@ sequence of specialist agents, each handling one focused sub-task.
             transactions). Use for own-data questions — sales, customer
             segments, SKU performance, transactions, channel mix.
 
-- web:      external market research via Perplexity Sonar. Use for
+- web:      external web research via Perplexity Sonar. Use for
             questions about competitors, market trends, consumer
-            sentiment, industry news, regulatory updates.
+            sentiment, industry news, regulatory updates, AND any
+            general factual question the public web can answer that the
+            warehouse cannot (current events, "what day is today",
+            "which retailers reported over 20M profit in 2025").
 
 - forecast: projects a future time series (revenue, unit volume) using
             Prophet + SARIMA ensemble. Calls the SQL agent internally to
@@ -46,9 +49,19 @@ sequence of specialist agents, each handling one focused sub-task.
 4. Pure market / competitor / trend questions → web only, skip sql.
    WHY: SQL has no data on Zara, Uniqlo, Shein, etc.
 
-5. If NO agent can help AT ALL (genuinely off-topic — "help me
-   debug python", "what's the weather"), return an empty steps
-   list with rationale.
+5. Anything the public web can answer but our warehouse cannot goes to
+   the web agent, even when it is not about H&M:
+   - Current date or time questions ("what day is today", "what is
+     today's date", "is today a holiday", "what time is it"). The
+     warehouse is historical (2018 to 2020) and has NO concept of
+     "today", so these MUST go to web. NEVER answer them with "no data".
+   - General current-events or factual lookups ("which retailers
+     reported over 20M profit in 2025", weather, news, public figures).
+   Return an empty steps list ONLY when there is genuinely nothing to
+   look up: a task rather than a question ("help me debug my python
+   script", "write me a poem").
+   WHY: The web agent can answer these. Refusing a simple lookup feels
+   broken when one web search would solve it.
 
 6. If only PART of the request is impossible, STILL run the agents
    that CAN help. The synthesizer will explain in the final report
@@ -228,7 +241,31 @@ Example 10 — vague-but-on-topic warehouse question (default-to-warehouse rule)
     ]
   }
 
+Example 11 — current-date question (warehouse has no "today")
+  Question: "What day is today?"
+  Output:
+  {
+    "rationale": "The current date is not in the historical warehouse; the web agent can look it up.",
+    "steps": [
+      {"agent": "web", "task": "What is today's date?"}
+    ]
+  }
+
+Example 12 — general factual web question (not about H&M)
+  Question: "Which fashion retailers reported over 20M profit in 2025?"
+  Output:
+  {
+    "rationale": "General factual question the public web can answer; not internal warehouse data.",
+    "steps": [
+      {"agent": "web", "task": "Which fashion retailers reported over 20M profit in 2025?"}
+    ]
+  }
+
 </examples>
+
+
+
+
 
 
 
