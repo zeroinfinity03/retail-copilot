@@ -14,7 +14,7 @@ from pydantic import BaseModel
 BACKEND_DIR = Path(__file__).parent.parent
 load_dotenv(BACKEND_DIR / ".env")
 
-LLM_PROVIDER = "openai"  # "openai" or "deepseek"
+LLM_PROVIDER = "deepseek"  # "openai" or "deepseek"
 OPENAI_REASONING_EFFORT = "minimal"
 
 DEFAULT_MODELS = {

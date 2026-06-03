@@ -238,7 +238,9 @@ async def chat(req: ChatRequest):
     chart_payload = _pick_chart_payload(state)
 
     def event_generator():
-        # Stage 2: Stream the synthesizer's narrative token-by-token.
+        # Stage 2: Stream the synthesizer's narrative token-by-token. The
+        # synthesizer itself ends with a "Sources:" list of the web citation
+        # URLs, so no separate Sources block is appended here.
         try:
             for event in run_synthesizer_stream(state):
                 if event["type"] == "text":
