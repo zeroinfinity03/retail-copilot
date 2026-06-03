@@ -25,7 +25,12 @@ Available chart types and the Plotly Express function each maps to:
 - funnel           → px.funnel()                       funnel chart
 
 
-Always set `color_column = null`.
+Keep `color_column = null` by default. Set it ONLY when the user
+explicitly asks to color or split by a category (for example "colored by
+product group", "split by channel", "by department"). Then set it to
+that EXACT category column from the provided column list. Never color
+by a numeric metric column, and never invent a column name. If the user
+did not ask for color, leave it null.
 </chart_types>
 
 
@@ -37,7 +42,7 @@ Schema:
   "chart_type":     "bar" | "horizontal_bar" | "line" | "area" | "scatter" | "scatter_3d" | "density_heatmap" | "pie" | "box" | "histogram" | "treemap" | "funnel",
   "x_column":       "<exact column name>",
   "y_column":       "<exact column name>" | null,
-  "color_column":   null,
+  "color_column":   "<exact category column from the list>" | null,
   "path_columns":   ["col1","col2",...] | null,
   "values_column":  "<exact column name>" | null,
   "z_column":       "<exact column name>" | null,
@@ -95,7 +100,7 @@ Output:
   "x_column": "week_start", "y_column": "units_sold",
   "color_column": null, "path_columns": null, "values_column": null, "z_column": null,
   "is_time_series": true,
-  "title": "Top-selling product — weekly units sold",
+  "title": "Top-selling product, weekly units sold",
   "caption": "Volume peaked in early December 2018, then settled lower."
 }
 
@@ -144,7 +149,39 @@ Output:
   "color_column": null, "path_columns": null, "values_column": null,
   "is_time_series": false,
   "title": "Revenue × Units × Avg Selling Price",
-  "caption": "Revenue tracks units while avg price stays flat — volume-driven growth."
+  "caption": "Revenue tracks units while avg price stays flat, volume-driven growth."
+}
+
+
+# scatter_3d (colored): set color_column ONLY because the user explicitly said "colored by ..."
+Input:
+  columns: ["product_group_name", "units_sold", "revenue", "avg_price"]
+  rows: [{"product_group_name": "Accessories", "units_sold": 1599593, "revenue": 24893.82, "avg_price": 0.0156}]
+  user question: "units sold, revenue, and average price per product group as a 3d scatter colored by product group"
+Output:
+{
+  "chart_type": "scatter_3d",
+  "x_column": "units_sold", "y_column": "revenue", "z_column": "avg_price",
+  "color_column": "product_group_name", "path_columns": null, "values_column": null,
+  "is_time_series": false,
+  "title": "Units, revenue, and avg price per product group",
+  "caption": "Each product group is one colored point; Accessories leads on volume."
+}
+
+
+# scatter_3d (NOT colored): SAME category column is present, but the user did NOT say "colored", so keep color_column null
+Input:
+  columns: ["product_group_name", "units_sold", "revenue", "avg_price"]
+  rows: [{"product_group_name": "Accessories", "units_sold": 1599593, "revenue": 24893.82, "avg_price": 0.0156}]
+  user question: "show units sold, revenue, and average price per product group as a 3d scatter"
+Output:
+{
+  "chart_type": "scatter_3d",
+  "x_column": "units_sold", "y_column": "revenue", "z_column": "avg_price",
+  "color_column": null, "path_columns": null, "values_column": null,
+  "is_time_series": false,
+  "title": "Units, revenue, and avg price per product group",
+  "caption": "Three KPIs per product group plotted in 3D."
 }
 
 
@@ -240,7 +277,7 @@ Output:
   "x_column": "customer_count", "y_column": "stage",
   "color_column": null, "path_columns": null, "values_column": null, "z_column": null,
   "is_time_series": false,
-  "title": "Purchase funnel — visit → cart → purchase",
+  "title": "Purchase funnel: visit → cart → purchase",
   "caption": "Roughly 35% of visitors add to cart, and ~23% of those convert."
 }
 
