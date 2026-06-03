@@ -8,7 +8,7 @@ Endpoint:
       data: {"type": "text", "content": "<token chunk>"}
       data: {"type": "text", "content": "<token chunk>"}
       ...
-      data: {"type": "complete", "charts": [{"chart_html": ..., "chart_title": ..., "chart_caption": ...}, ...]}
+      data: {"type": "complete", "charts": [{"chart_html": ..., ...}, ...], "sources": ["<url>", ...]}
 
 Specialist agents (sql / web / forecast / chart) run blocking on a worker
 thread because they don't stream. Only the synthesizer's narrative output
@@ -125,11 +125,8 @@ def format_state_as_markdown(state: dict) -> str:
         parts.append("### Market research\n")
         parts.append(web["answer"])
         parts.append("")
-        if web.get("citations"):
-            parts.append("**Sources:**")
-            for c in web["citations"][:6]:
-                parts.append(f"- {c}")
-            parts.append("")
+        # Sources are not appended here; they ride the SSE "complete" event
+        # and the frontend renders them after the charts.
 
     fc = state.get("forecast_results") or {}
     if fc and (fc.get("series_label") or fc.get("error")):
@@ -220,7 +217,7 @@ async def chat(req: ChatRequest):
 
     SSE events:
       {"type": "text",     "content": "<chunk>"}   — incremental synthesizer tokens
-      {"type": "complete", "charts": [{"chart_html": ..., "chart_title": ..., "chart_caption": ...}, ...]}
+      {"type": "complete", "charts": [{"chart_html": ..., ...}, ...], "sources": ["<url>", ...]}
       {"type": "error",    "error": "<message>"}
     """
     user_msgs = [m for m in req.messages if m.role == "user"]
@@ -237,11 +234,12 @@ async def chat(req: ChatRequest):
     state = await asyncio.to_thread(run_pipeline, user_query, True)
 
     charts = _chart_payloads(state)
+    sources = ((state.get("web_results") or {}).get("citations") or [])[:6]
 
     def event_generator():
         # Stage 2: Stream the synthesizer's narrative token-by-token. The
-        # synthesizer itself ends with a "Sources:" list of the web citation
-        # URLs, so no separate Sources block is appended here.
+        # synthesizer writes no URLs; the web sources ride the final
+        # "complete" event and the frontend renders them after the charts.
         try:
             for event in run_synthesizer_stream(state):
                 if event["type"] == "text":
@@ -261,8 +259,9 @@ async def chat(req: ChatRequest):
             yield _sse({"type": "error", "error": str(e)})
             return
 
-        # Stage 3: Final event — all chart payloads + completion signal.
-        yield _sse({"type": "complete", "charts": charts})
+        # Stage 3: Final event — charts + web sources (the frontend renders
+        # the sources after the charts) + completion signal.
+        yield _sse({"type": "complete", "charts": charts, "sources": sources})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

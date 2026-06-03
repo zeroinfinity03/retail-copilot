@@ -8,6 +8,7 @@ export default function Message({
   role,
   content,
   charts,
+  sources,
   isLoading,
 }) {
   const isUser = role === 'user';
@@ -87,6 +88,21 @@ export default function Message({
             />
           </div>
         ))}
+
+        {sources && sources.length > 0 && (
+          <div className="msg-sources">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({ href, children }) => (
+                  <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                ),
+              }}
+            >
+              {`**Sources**\n\n${sources.map((u) => `- ${u}`).join('\n')}`}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
       {showActions && (
         <div className="msg-actions">

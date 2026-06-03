@@ -20,7 +20,7 @@ export default function App() {
     setMessages((prev) => [
       ...prev,
       userMsg,
-      { role: 'assistant', content: '', charts: [], loading: true },
+      { role: 'assistant', content: '', charts: [], sources: [], loading: true },
     ]);
     setIsLoading(true);
 
@@ -50,6 +50,7 @@ export default function App() {
       onComplete: (result) => {
         updateAssistant({
           charts: result.charts || [],
+          sources: result.sources || [],
           loading: false,
         });
       },
@@ -75,6 +76,7 @@ export default function App() {
                 role={m.role}
                 content={m.content}
                 charts={m.charts}
+                sources={m.sources}
                 isLoading={m.loading}
               />
             ))}
