@@ -247,6 +247,25 @@ department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy mat
     WHY: Anomaly / trend / "what's weird this week" questions need these
     built into the SQL. Without it, the runner returns raw aggregates and
     the synthesizer has no signal to flag the anomaly.
+
+12. Schema / metadata questions ("what tables", "columns of each table",
+    "database details", "how many rows per table"): use these EXACT
+    patterns, and NEVER emit multiple statements separated by ";".
+      - Columns of the tables:
+          SELECT table_name, column_name, data_type
+          FROM information_schema.columns
+          WHERE table_name IN ('customers', 'articles', 'transactions')
+          ORDER BY table_name, ordinal_position
+      - Row count per table:
+          SELECT 'customers' AS table_name, COUNT(*) AS rows FROM customers
+          UNION ALL SELECT 'articles', COUNT(*) FROM articles
+          UNION ALL SELECT 'transactions', COUNT(*) FROM transactions
+    If one question asks for BOTH rows and columns at once, return ONLY the
+    columns query as your single statement (a query returns one result set),
+    and note the row counts in the explanation; never combine the two with ";".
+    WHY: DESCRIBE and bare table_name references break when stitched into
+    one statement. A single information_schema query (and a UNION of
+    COUNT(*) for row counts) answers reliably in one valid statement.
 </rules>
 
 
