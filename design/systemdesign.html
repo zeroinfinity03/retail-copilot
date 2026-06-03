@@ -1131,15 +1131,18 @@ result_df = con.execute(sql).fetchdf()</pre>
 
   <p>
     Competitor news, industry trends, pricing changes, consumer
-    sentiment. Sonar Pro internally expands queries, searches the web,
-    reads pages, and synthesizes a grounded answer with source citations.
+    sentiment, and general factual questions the warehouse cannot answer.
+    The agent first turns the full question into one focused web query
+    (or declines if nothing needs the web), then hands that query to
+    Sonar Pro, which expands sub-queries, searches the web, reads pages,
+    and synthesizes a grounded answer with source citations.
   </p>
 
   <div class="agent-grid">
     <div class="agent-card">
       <h4>Input</h4>
       <div class="content">
-        <code>task: str</code> &mdash; the user's full question (the supervisor only decided this agent should run; the prompt scopes it to the market-research part).<br>
+        <code>task: str</code>, the user's full question (the supervisor only decided this agent should run). The agent extracts its own focused web query from it.<br>
         <em>e.g., "2026 fashion retail trends"</em>
       </div>
     </div>
@@ -1163,20 +1166,23 @@ result_df = con.execute(sql).fetchdf()</pre>
     <div class="flow-step">
       <div class="num">1</div>
       <div class="body">
-        <div class="step-title">Build messages: system prompt + user task</div>
-        <div class="step-desc">The agent loads its system prompt from disk (which defines its role as an external market researcher) and appends the full user question as the user message. Standard OpenAI <code>messages</code> format because Sonar Pro is OpenAI-compatible.</div>
-<pre>messages = [
-    {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: load_system_prompt()},
-    {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: task},
-]</pre>
+        <div class="step-title">Extract a focused web query (or decline)</div>
+        <div class="step-desc">A gateway LLM call (deepseek-v4-flash) reads the full question and returns one focused web-search query, or <code>null</code> when nothing needs the web (H&M internal data or a pure forecast). This is the same "parse the task into a focused sub-task" pattern the forecast agent uses. The prompt carries the agent's identity (H&M and its competitors) and the in-scope / out-of-scope boundary, so "competitors" resolves to real brands and internal-data questions decline. When <code>search_query</code> is null the agent returns an empty result immediately, with no Perplexity call.</div>
+<pre>spec = make_web_query(task)        <span class="com"># {search_query: str | null}</span>
+<span class="kw">if</span> <span class="kw">not</span> spec.search_query:
+    <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
       </div>
     </div>
 
     <div class="flow-step">
       <div class="num">2</div>
       <div class="body">
-        <div class="step-title">Call Perplexity Sonar Pro (with search controls)</div>
-        <div class="step-desc">The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity. The whole call is wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+        <div class="step-title">Call Perplexity Sonar Pro on the focused query</div>
+        <div class="step-desc">The focused query (not the raw question) becomes the user message, with a short style-only system prompt that governs how Perplexity writes the answer. The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity, wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+<pre>messages = [
+    {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: PERPLEXITY_SYSTEM},
+    {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: spec.search_query},
+]</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Client setup &mdash; same SDK, different URL.</strong> The agent uses the OpenAI Python SDK with <code>base_url</code> rewritten:</div>
 <pre>_client = OpenAI(
     api_key=os.getenv(<span class="str">"PERPLEXITY_API_KEY"</span>),
