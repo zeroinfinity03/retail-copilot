@@ -705,9 +705,9 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">4</div>
       <div class="body">
         <div class="step-title"><code>make_plan()</code> &mdash; the planner LLM call</div>
-        <div class="step-desc">One structured-output call to <code>gpt-5-mini</code>. The supervisor system prompt is loaded from disk, the user query is appended, and OpenAI's structured-outputs feature forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text &mdash; only a valid <code>Plan</code>.</div>
+        <div class="step-desc">One structured-output call through the <code>llm.py</code> provider gateway (<code>deepseek-v4-flash</code> by default). The supervisor system prompt is loaded from disk, the user query is appended, and the gateway's <code>structured()</code> helper forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text &mdash; only a valid <code>Plan</code>.</div>
 <pre>response = client.chat.completions.parse(
-    model=<span class="str">"gpt-5-mini"</span>,
+    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=Plan,
 )
@@ -1053,7 +1053,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
         <div class="step-title">Supervisor sends a task &rarr; <code>generate_sql()</code> LLM call</div>
         <div class="step-desc">A natural-language sub-task arrives (e.g., <em>"Top 5 Ladieswear sellers last quarter"</em>). The agent loads its system prompt, combines it with the task, and makes a single structured-output call that returns a typed <code>SQLOutput</code> object. The LLM never touches the database.</div>
 <pre>response = client.chat.completions.parse(
-    model=<span class="str">"gpt-5-mini"</span>,
+    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=SQLOutput,
 )
@@ -1292,7 +1292,7 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
         <div class="step-title"><code>make_forecast_spec()</code> &mdash; LLM parses the task into a typed <code>ForecastSpec</code></div>
         <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
 <pre>response = client.chat.completions.parse(
-    model=<span class="str">"gpt-5-mini"</span>,
+    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=ForecastSpec,
 )
@@ -1561,7 +1561,7 @@ user_question: str            <span style="color:#777;"># the original NL query<
         <div class="step-title"><code>get_chart_spec()</code> &mdash; LLM picks the chart type and columns</div>
         <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 12), the x / y / z column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
 <pre>response = client.chat.completions.parse(
-    model=<span class="str">"gpt-5-mini"</span>,
+    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=ChartSpec,
 )</pre>
@@ -1742,7 +1742,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
         <div class="step-title">Single LLM call &mdash; returns free-form markdown narrative</div>
         <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, list web sources as a Sources section at the end, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
 <pre>response = client.chat.completions.create(
-    model=<span class="str">"gpt-5-mini"</span>,
+    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
 )
 final_report = response.choices[0].message.content</pre>
