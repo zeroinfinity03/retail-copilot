@@ -1728,7 +1728,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Single LLM call &mdash; returns free-form markdown narrative</div>
-        <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, embed citations inline, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
+        <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs &mdash; it returns prose. The system prompt enforces style rules (lead with the answer, list web sources as a Sources section at the end, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
 <pre>response = client.chat.completions.create(
     model=<span class="str">"gpt-5-mini"</span>,
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
