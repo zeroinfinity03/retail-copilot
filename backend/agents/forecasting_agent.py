@@ -381,7 +381,7 @@ def run(task: str, verbose: bool = False) -> dict:
     result["series_label"] = spec.series_label
     result["explanation"] = spec.explanation
     if verbose:
-        print(f"📈 Forecast spec: {spec.series_label} / horizon={spec.horizon_days}d")
+        print(f"Forecast spec: {spec.series_label} / horizon={spec.horizon_days}d")
 
     # --- Step 2: Fetch historical series via SQL agent + reshape + validate length ---
     sql_out = run_sql(spec.sql_task)

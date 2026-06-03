@@ -27,14 +27,14 @@ EXPECTED_FILES = {
 def check_files() -> None:
     missing = [name for name, path in EXPECTED_FILES.items() if not path.exists()]
     if missing:
-        print("❌ Missing files in backend/raw_data/:")
+        print("Missing files in backend/raw_data/:")
         for name in missing:
             print(f"   - {EXPECTED_FILES[name].name}")
         print("\nPlease download from Kaggle and place them here:")
         print(f"   {CSV_DIR}")
         raise SystemExit(1)
 
-    print("✅ All 3 CSV files found:")
+    print("All 3 CSV files found:")
     for name, path in EXPECTED_FILES.items():
         size_mb = path.stat().st_size / 1e6
         print(f"   {path.name:30s} {size_mb:>10.1f} MB")
@@ -42,7 +42,7 @@ def check_files() -> None:
 
 def load_csv_to_table(con: duckdb.DuckDBPyConnection, table: str, csv_path: Path) -> None:
     """Drop and recreate the table from CSV using DuckDB's native CSV reader."""
-    print(f"\n📥 Loading {csv_path.name} → table '{table}' ...")
+    print(f"\nLoading {csv_path.name} → table '{table}' ...")
     con.execute(f"DROP TABLE IF EXISTS {table}")
     con.execute(
         f"CREATE TABLE {table} AS SELECT * FROM read_csv_auto(?, header=true)",
@@ -53,14 +53,14 @@ def load_csv_to_table(con: duckdb.DuckDBPyConnection, table: str, csv_path: Path
 
 
 def print_schema(con: duckdb.DuckDBPyConnection, table: str) -> None:
-    print(f"\n📋 Schema for '{table}':")
+    print(f"\nSchema for '{table}':")
     columns = con.execute(f"DESCRIBE {table}").fetchall()
     for col_name, col_type, *_ in columns:
         print(f"   {col_name:35s} {col_type}")
 
 
 def print_samples(con: duckdb.DuckDBPyConnection, table: str, n: int = 3) -> None:
-    print(f"\n🔍 Sample rows from '{table}':")
+    print(f"\nSample rows from '{table}':")
     rows = con.execute(f"SELECT * FROM {table} LIMIT {n}").fetchdf()
     print(rows.to_string(index=False, max_colwidth=40))
 
@@ -73,7 +73,7 @@ def quick_sanity_checks(con: duckdb.DuckDBPyConnection) -> None:
     txn_range = con.execute(
         "SELECT MIN(t_dat) AS min_date, MAX(t_dat) AS max_date FROM transactions"
     ).fetchone()
-    print(f"📅 Transaction date range: {txn_range[0]}  →  {txn_range[1]}")
+    print(f"Transaction date range: {txn_range[0]}  →  {txn_range[1]}")
 
     counts = con.execute(
         """
@@ -83,9 +83,9 @@ def quick_sanity_checks(con: duckdb.DuckDBPyConnection) -> None:
             (SELECT COUNT(*) FROM transactions) AS transaction_count
         """
     ).fetchone()
-    print(f"👥 Customers:    {counts[0]:>12,}")
-    print(f"🏷  Articles:     {counts[1]:>12,}")
-    print(f"💳 Transactions: {counts[2]:>12,}")
+    print(f"Customers:    {counts[0]:>12,}")
+    print(f"Articles:     {counts[1]:>12,}")
+    print(f"Transactions: {counts[2]:>12,}")
 
     channel_mix = con.execute(
         """
@@ -95,7 +95,7 @@ def quick_sanity_checks(con: duckdb.DuckDBPyConnection) -> None:
         ORDER BY sales_channel_id
         """
     ).fetchall()
-    print("\n🛒 Channel mix (1 = in-store, 2 = online):")
+    print("\nChannel mix (1 = in-store, 2 = online):")
     for channel, txns in channel_mix:
         print(f"   channel {channel}: {txns:>12,} transactions")
 
@@ -108,14 +108,14 @@ def quick_sanity_checks(con: duckdb.DuckDBPyConnection) -> None:
         ORDER BY txns DESC
         """
     ).fetchall()
-    print("\n👗 Transactions by index_name (top categories):")
+    print("\nTransactions by index_name (top categories):")
     for index_name, txns in top_groups:
         print(f"   {str(index_name):30s} {txns:>12,}")
 
 
 def main() -> None:
-    print(f"📂 CSVs from:  {CSV_DIR}")
-    print(f"💾 DB path:    {DB_PATH}\n")
+    print(f"CSVs from:  {CSV_DIR}")
+    print(f"DB path:    {DB_PATH}\n")
 
     check_files()
 
@@ -131,7 +131,7 @@ def main() -> None:
     quick_sanity_checks(con)
 
     con.close()
-    print(f"\n✅ Done. DuckDB written to: {DB_PATH}")
+    print(f"\nDone. DuckDB written to: {DB_PATH}")
     print(f"   Size: {DB_PATH.stat().st_size / 1e6:.1f} MB")
 
 

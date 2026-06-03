@@ -35,15 +35,15 @@ DO write a brief like:
 
 DO NOT name columns, tables, or write SQL fragments. The following
 are anti-patterns that LOCK IN wrong assumptions:
-  ❌ "where product_group_name = 'Denim'"           ← may be wrong column
-  ❌ "WHERE index_name = 'Womens Tailoring'"        ← may be wrong column
-  ❌ "JOIN articles a ON ..."                       ← let sql_agent handle joins
-  ❌ "where postal_code = '12345'"                  ← postal_code is hashed; literal won't match
+  "where product_group_name = 'Denim'"           ← may be wrong column
+  "WHERE index_name = 'Womens Tailoring'"        ← may be wrong column
+  "JOIN articles a ON ..."                       ← let sql_agent handle joins
+  "where postal_code = '12345'"                  ← postal_code is hashed; literal won't match
 
 INSTEAD describe the BUSINESS intent and let the SQL agent figure out
 which column(s) match. If the user mentions an entity you're unsure
 about (e.g., "Denim department"), name it without picking a column:
-  ✅ "Daily revenue for the Denim category (let sql_agent locate
+  "Daily revenue for the Denim category (let sql_agent locate
       it — could be in garment group, product type, or department)."
 
 If the user's request is genuinely incompatible with our schema

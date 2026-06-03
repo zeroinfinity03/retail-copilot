@@ -57,16 +57,16 @@ LOAD_SCRIPT = BACKEND_DIR / "scripts" / "load_data.py"
 async def lifespan(app: FastAPI):
     """One-time DB build on first startup if the warehouse is missing."""
     if not DB_PATH.exists():
-        print(f"⚠️  DuckDB warehouse not found at {DB_PATH}")
+        print(f"DuckDB warehouse not found at {DB_PATH}")
         print(f"→ Building it from CSVs in backend/raw_data/ (this takes ~2 min, one-time)\n")
         result = subprocess.run([sys.executable, str(LOAD_SCRIPT)], cwd=str(BACKEND_DIR))
         if result.returncode != 0:
             print(
-                "\n❌ DB build failed. Make sure the H&M CSVs are in backend/raw_data/:\n"
+                "\nDB build failed. Make sure the H&M CSVs are in backend/raw_data/:\n"
                 "   articles.csv, customers.csv, transactions_train.csv"
             )
             raise SystemExit(1)
-        print("\n✅ DB ready. Server starting...\n")
+        print("\nDB ready. Server starting...\n")
     yield
 
 
@@ -108,7 +108,7 @@ def format_state_as_markdown(state: dict) -> str:
 
     sql = state.get("sql_results") or {}
     if sql and (sql.get("rows") or sql.get("error") or sql.get("explanation")):
-        parts.append("### 🗄  Internal data\n")
+        parts.append("### Internal data\n")
         if sql.get("error"):
             parts.append(f"_Error:_ {sql['error']}\n")
         else:
@@ -122,7 +122,7 @@ def format_state_as_markdown(state: dict) -> str:
 
     web = state.get("web_results") or {}
     if web and web.get("answer"):
-        parts.append("### 🌐 Market research\n")
+        parts.append("### Market research\n")
         parts.append(web["answer"])
         parts.append("")
         if web.get("citations"):
@@ -133,7 +133,7 @@ def format_state_as_markdown(state: dict) -> str:
 
     fc = state.get("forecast_results") or {}
     if fc and (fc.get("series_label") or fc.get("error")):
-        parts.append("### 📈 Forecast\n")
+        parts.append("### Forecast\n")
         if fc.get("error"):
             parts.append(f"_Forecast could not be produced:_ {fc['error']}\n")
         else:
@@ -156,7 +156,7 @@ def format_state_as_markdown(state: dict) -> str:
 
     chart = state.get("chart_results") or {}
     if chart and (chart.get("title") or chart.get("error")):
-        parts.append("### 📊 Chart\n")
+        parts.append("### Chart\n")
         if chart.get("error"):
             parts.append(f"_Chart could not be rendered:_ {chart['error']}\n")
         else:
@@ -169,7 +169,7 @@ def format_state_as_markdown(state: dict) -> str:
     final = state.get("final_report")
     if final and not final.startswith("(synthesizer step pending"):
         parts.append("---\n")
-        parts.append("### 📝 Summary\n")
+        parts.append("### Summary\n")
         parts.append(final)
 
     if not parts:

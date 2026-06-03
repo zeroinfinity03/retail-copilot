@@ -87,7 +87,7 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
     plan = make_plan(user_query)
 
     if verbose:
-        print(f"📋 Plan: {plan.rationale}")
+        print(f"Plan: {plan.rationale}")
         for s in plan.steps:
             print(f"   - {s.agent}: {s.task}")
         print()
@@ -112,7 +112,7 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
 
     if parallel_jobs:
         if verbose:
-            print(f"⚡ Running in parallel: {list(parallel_jobs.keys())}")
+            print(f"Running in parallel: {list(parallel_jobs.keys())}")
         t0 = time.perf_counter()
 
         runners = {"sql": run_sql, "web": run_web, "forecast": run_forecast}
@@ -125,7 +125,7 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
                 agent = futures[fut]
                 state[f"{agent}_results"] = fut.result()
                 if verbose:
-                    print(f"   ✓ {agent} done at +{time.perf_counter() - t0:.1f}s")
+                    print(f"   {agent} done at +{time.perf_counter() - t0:.1f}s")
 
     # --- Stage 2: Chart runs AFTER SQL (depends on SQL rows) ---------------
     # The supervisor prompt advises the LLM not to emit a chart step when
@@ -133,7 +133,7 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
     # nothing here actively skips chart based on forecast presence.
     needs_chart = any(s.agent == "chart" for s in plan.steps)
     if needs_chart:
-        if verbose: print(f"📊 Chart agent ...")
+        if verbose: print(f"Chart agent ...")
         sql_out = state.get("sql_results") or {}
         if not sql_out.get("rows"):
             state["chart_results"] = {
@@ -149,7 +149,7 @@ def run(user_query: str, verbose: bool = False, skip_synthesizer: bool = False) 
     # Synthesizer composes the final narrative report from all agent outputs.
     # Skipped when the caller plans to stream the synthesizer separately.
     if not skip_synthesizer:
-        if verbose: print(f"🧶 Synthesizer ...")
+        if verbose: print(f"Synthesizer ...")
         synth_out = run_synthesizer(state)
         state["final_report"] = synth_out["final_report"]
         state["synthesizer_skipped"] = synth_out.get("skipped", False)
