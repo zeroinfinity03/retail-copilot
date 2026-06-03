@@ -8,7 +8,7 @@ Endpoint:
       data: {"type": "text", "content": "<token chunk>"}
       data: {"type": "text", "content": "<token chunk>"}
       ...
-      data: {"type": "complete", "chart_html": ..., "chart_title": ..., "chart_caption": ...}
+      data: {"type": "complete", "charts": [{"chart_html": ..., "chart_title": ..., "chart_caption": ...}, ...]}
 
 Specialist agents (sql / web / forecast / chart) run blocking on a worker
 thread because they don't stream. Only the synthesizer's narrative output
@@ -192,21 +192,26 @@ def _sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-def _pick_chart_payload(state: dict) -> dict:
-    """Choose forecast chart over chart-agent chart when both exist."""
-    forecast = state.get("forecast_results") or {}
+def _chart_payloads(state: dict) -> list[dict]:
+    """All charts to show, in display order: the chart-agent chart first,
+    then the forecast chart (when the forecast agent ran). Either may be
+    absent and both can be present, so the frontend renders every one."""
+    charts: list[dict] = []
     chart = state.get("chart_results") or {}
+    if chart.get("figure_html"):
+        charts.append({
+            "chart_html":    chart["figure_html"],
+            "chart_title":   chart.get("title"),
+            "chart_caption": chart.get("caption"),
+        })
+    forecast = state.get("forecast_results") or {}
     if forecast.get("chart_html"):
-        return {
+        charts.append({
             "chart_html":    forecast["chart_html"],
-            "chart_title":   f"{forecast.get('series_label', 'Forecast')} — {forecast.get('horizon_days', 0)}-day projection",
+            "chart_title":   f"{forecast.get('series_label', 'Forecast')} ({forecast.get('horizon_days', 0)}-day projection)",
             "chart_caption": forecast.get("explanation"),
-        }
-    return {
-        "chart_html":    chart.get("figure_html"),
-        "chart_title":   chart.get("title"),
-        "chart_caption": chart.get("caption"),
-    }
+        })
+    return charts
 
 
 @app.post("/api/chat")
@@ -215,7 +220,7 @@ async def chat(req: ChatRequest):
 
     SSE events:
       {"type": "text",     "content": "<chunk>"}   — incremental synthesizer tokens
-      {"type": "complete", "chart_html": ..., "chart_title": ..., "chart_caption": ...}
+      {"type": "complete", "charts": [{"chart_html": ..., "chart_title": ..., "chart_caption": ...}, ...]}
       {"type": "error",    "error": "<message>"}
     """
     user_msgs = [m for m in req.messages if m.role == "user"]
@@ -231,7 +236,7 @@ async def chat(req: ChatRequest):
     # synthesizer node — we'll stream it ourselves below.
     state = await asyncio.to_thread(run_pipeline, user_query, True)
 
-    chart_payload = _pick_chart_payload(state)
+    charts = _chart_payloads(state)
 
     def event_generator():
         # Stage 2: Stream the synthesizer's narrative token-by-token. The
@@ -256,8 +261,8 @@ async def chat(req: ChatRequest):
             yield _sse({"type": "error", "error": str(e)})
             return
 
-        # Stage 3: Final event — chart payload + completion signal.
-        yield _sse({"type": "complete", **chart_payload})
+        # Stage 3: Final event — all chart payloads + completion signal.
+        yield _sse({"type": "complete", "charts": charts})
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

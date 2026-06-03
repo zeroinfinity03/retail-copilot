@@ -7,9 +7,7 @@ import CodeBlock from './CodeBlock';
 export default function Message({
   role,
   content,
-  chartHtml,
-  chartTitle,
-  chartCaption,
+  charts,
   isLoading,
 }) {
   const isUser = role === 'user';
@@ -23,9 +21,9 @@ export default function Message({
     } catch {}
   }
 
-  function openChartInNewTab() {
-    if (!chartHtml) return;
-    const blob = new Blob([chartHtml], { type: 'text/html' });
+  function openChartInNewTab(html) {
+    if (!html) return;
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank', 'noopener,noreferrer');
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -70,25 +68,25 @@ export default function Message({
           </ReactMarkdown>
         )}
 
-        {chartHtml && (
-          <div className="msg-chart">
+        {charts && charts.map((c, idx) => (
+          <div className="msg-chart" key={idx}>
             <button
               type="button"
               className="msg-chart-expand"
-              onClick={openChartInNewTab}
+              onClick={() => openChartInNewTab(c.chart_html)}
               aria-label="Open in new tab"
               title="Open in new tab"
             >
               <Maximize2 size={14} strokeWidth={1.75} />
             </button>
             <iframe
-              srcDoc={chartHtml}
-              title={chartTitle || 'Chart'}
+              srcDoc={c.chart_html}
+              title={c.chart_title || 'Chart'}
               className="msg-chart-frame"
               sandbox="allow-scripts allow-same-origin"
             />
           </div>
-        )}
+        ))}
       </div>
       {showActions && (
         <div className="msg-actions">

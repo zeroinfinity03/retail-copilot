@@ -5,7 +5,7 @@ const USE_MOCK = false;
  *
  * Calls back as events arrive:
  *   onToken(chunk)           — incremental synthesizer token
- *   onComplete(chartPayload) — final event with { chart_html, chart_title, chart_caption }
+ *   onComplete({ charts }) — final event with an array of { chart_html, chart_title, chart_caption }
  *   onError(error)           — fatal error
  *
  * Returns a Promise that resolves when the stream finishes.
@@ -65,11 +65,7 @@ export async function sendAgentRequest(messages, { onToken, onComplete, onError 
         if (event.type === 'text' && typeof event.content === 'string') {
           onToken(event.content);
         } else if (event.type === 'complete') {
-          onComplete({
-            chart_html: event.chart_html || null,
-            chart_title: event.chart_title || null,
-            chart_caption: event.chart_caption || null,
-          });
+          onComplete({ charts: Array.isArray(event.charts) ? event.charts : [] });
         } else if (event.type === 'error') {
           onError(new Error(event.error || 'Stream error'));
           return;
@@ -92,5 +88,5 @@ async function mockStream(messages, onToken, onComplete) {
     await new Promise((r) => setTimeout(r, 40));
     onToken(t);
   }
-  onComplete({ chart_html: null, chart_title: null, chart_caption: null });
+  onComplete({ charts: [] });
 }

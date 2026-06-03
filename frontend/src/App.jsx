@@ -20,7 +20,7 @@ export default function App() {
     setMessages((prev) => [
       ...prev,
       userMsg,
-      { role: 'assistant', content: '', chart_html: null, loading: true },
+      { role: 'assistant', content: '', charts: [], loading: true },
     ]);
     setIsLoading(true);
 
@@ -47,11 +47,9 @@ export default function App() {
           return next;
         });
       },
-      onComplete: (chart) => {
+      onComplete: (result) => {
         updateAssistant({
-          chart_html: chart.chart_html,
-          chart_title: chart.chart_title,
-          chart_caption: chart.chart_caption,
+          charts: result.charts || [],
           loading: false,
         });
       },
@@ -76,9 +74,7 @@ export default function App() {
                 key={i}
                 role={m.role}
                 content={m.content}
-                chartHtml={m.chart_html}
-                chartTitle={m.chart_title}
-                chartCaption={m.chart_caption}
+                charts={m.charts}
                 isLoading={m.loading}
               />
             ))}
