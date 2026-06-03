@@ -82,16 +82,17 @@ def test_format_sql_block_handles_none():
     assert _format_sql_block(None) == "(none)"
 
 
-def test_format_web_block_caps_citations():
-    """Web citations are capped at 6 to avoid token bloat."""
+def test_format_web_block_excludes_urls():
+    """The synthesizer's web block omits citation URLs; the app renders the
+    sources separately (after the charts), so the synthesizer never sees them."""
     web = {
         "answer": "market context",
         "citations": [f"https://example.com/{i}" for i in range(20)],
     }
     text = _format_web_block(web)
     assert "market context" in text
-    # the 7th-onward citation should NOT appear (cap is 6)
-    assert "https://example.com/6" not in text
+    # no citation URL should reach the synthesizer
+    assert "https://example.com" not in text
 
 
 def test_format_chart_block_returns_title_and_caption():

@@ -25,7 +25,6 @@ PROMPT_PATH = BACKEND_DIR / "prompts" / "synthesizer.txt"
 
 SAMPLE_ROW_LIMIT = 5
 FULL_ROWS_LIMIT = 50   # if the result has <= this many rows, send them all to the synth (e.g. a schema dump)
-WEB_CITATION_LIMIT = 6
 
 
 # ============================================================
@@ -66,11 +65,10 @@ def _format_web_block(web: Optional[dict]) -> str:
     answer = web.get("answer")
     if not answer:
         return "(none)"
-    cites = (web.get("citations") or [])[:WEB_CITATION_LIMIT]
-    parts = [answer]
-    if cites:
-        parts.append(f"Citations: {cites}")
-    return "\n".join(parts)
+    # Citations are NOT sent to the synthesizer. The app renders the sources
+    # after the charts (from web_results), so the synthesizer only sees the
+    # answer text and can never paste or duplicate a URL.
+    return answer
 
 
 def _format_chart_block(chart: Optional[dict]) -> str:

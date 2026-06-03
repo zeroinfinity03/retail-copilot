@@ -106,8 +106,7 @@ SQL DATA:
 <one of: "(none)" OR "{explanation}\nRow count: N\nSample rows: [...]">
 
 WEB RESEARCH:
-<one of: "(none)" OR "{answer text}\nCitations: [urls]">
-(The Citations list is CONTEXT ONLY. Do NOT output it; the app renders the sources.)
+<one of: "(none)" OR "{answer text}">   (URLs are not included here; the app renders the sources after the charts)
 
 FORECAST:
 <one of: "(none)" OR a block with:
