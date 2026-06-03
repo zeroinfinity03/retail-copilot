@@ -678,6 +678,7 @@ The supervisor orchestrates; the rest do the actual work.
 <span class="kw">@app</span>.post(<span class="str">"/api/chat"</span>)
 <span class="kw">async def</span> <span class="fn">chat</span>(req: ChatRequest):
     user_query = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>][-1].content
+    <span class="com"># list comprehension: keep only the user messages, then take the last one's content</span>
     <span class="com"># True = skip the synthesizer here; main.py streams it itself below</span>
     state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, <span class="kw">True</span>)
     <span class="kw">return</span> StreamingResponse(event_generator(), media_type=<span class="str">"text/event-stream"</span>)</pre>
@@ -739,6 +740,7 @@ The supervisor orchestrates; the rest do the actual work.
         <div class="step-desc">The supervisor walks the plan, groups <code>code</code>, <code>research</code>, and <code>forecast</code> into a parallel batch (they're independent), and submits each to a <code>ThreadPoolExecutor</code>. As each thread finishes, its result is written into the matching <code>state</code> slot via <code>as_completed</code>. Loop exits only when all parallel futures are done.</div>
 <pre><span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
     futures = {pool.submit(runners[a], task): a <span class="kw">for</span> a, task <span class="kw">in</span> parallel_jobs.items()}
+    <span class="com"># dict comprehension: start each agent on a thread; map the returned future -&gt; agent name</span>
     <span class="kw">for</span> fut <span class="kw">in</span> as_completed(futures):
         agent = futures[fut]
         state[<span class="str">f"</span>{agent}_results<span class="str">"</span>] = fut.result()</pre>
