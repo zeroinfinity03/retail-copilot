@@ -3,7 +3,7 @@ SQL Agent — generates DuckDB SQL for retail analytics sub-tasks.
 
 Pipeline:
   1. LLM call: (system prompt + sub-task) -> structured JSON {sql, explanation}
-  2. Python: keyword blocklist + sandboxed read-only DuckDB execution
+  2. Python: allowlist (only a single SELECT/WITH) + read-only DuckDB execution
   3. On SQL error: one retry, feeding the error message back to the LLM
   4. Return: {sql, explanation, columns, rows, row_count, error}
 
@@ -32,10 +32,11 @@ PROMPT_PATH = BACKEND_DIR / "prompts" / "sql_agent.txt"
 DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
 
 # Sandbox configuration
-BANNED_KEYWORDS = [
-    "DROP", "DELETE", "INSERT", "UPDATE",
-    "ALTER", "TRUNCATE", "CREATE", "ATTACH",
-]
+# Allowlist (default-deny): only a single SELECT/WITH read query is permitted.
+# Everything else (DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE,
+# ATTACH, plus COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET, ...) is rejected
+# before it reaches the engine.
+ALLOWED_STARTS = ("SELECT", "WITH")
 MAX_ROWS_RETURNED = 1000
 MAX_RETRIES = 1
 
@@ -47,7 +48,7 @@ MAX_RETRIES = 1
 class SQLOutput(BaseModel):
     """What the LLM must return."""
     sql: Optional[str] = Field(
-        description="DuckDB SELECT-only query, or null if the task is out of scope."
+        description="DuckDB read query starting with SELECT or WITH, or null if the task is out of scope."
     )
     explanation: str = Field(
         description="One-sentence plain English summary of the query intent (20 words max)."
@@ -62,15 +63,27 @@ def load_system_prompt() -> str:
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
-def contains_banned_keyword(sql: str) -> Optional[str]:
-    """Return the first banned keyword found, or None.
+def read_only_guard(sql: str) -> Optional[str]:
+    """Allowlist gate: permit only a single SELECT or WITH read query.
 
-    Uses padded matching to avoid false positives like UPDATED_AT or CREATED_BY.
+    Default-deny. Returns an error message if the query is not allowed, else
+    None. This rejects writes (DROP/DELETE/INSERT/UPDATE/ALTER/TRUNCATE/
+    CREATE/ATTACH) and side-effect statements (COPY/EXPORT/INSTALL/LOAD/
+    PRAGMA/SET/...) up front. read_only=True is the connection-level backstop.
     """
-    padded = f" {sql.upper()} "
-    for kw in BANNED_KEYWORDS:
-        if f" {kw} " in padded:
-            return kw
+    # Drop a single trailing ';' and surrounding whitespace.
+    cleaned = sql.strip().rstrip(";").strip()
+
+    # A leftover ';' means a second statement was chained in (e.g. injection).
+    # (A ';' inside a string literal would also trip this, but the analytics
+    #  queries here never put one there, so it is a safe trade-off.)
+    if ";" in cleaned:
+        return "only a single statement is allowed (no ';' chaining)"
+
+    # Must be a read query: SELECT or WITH (CTE). startswith accepts a tuple.
+    if not cleaned.upper().startswith(ALLOWED_STARTS):
+        return "only SELECT or WITH (read-only) queries are allowed"
+
     return None
 
 
@@ -102,21 +115,21 @@ def execute_sql(sql: str) -> dict:
     """Run SQL in a sandboxed read-only DuckDB connection.
 
     Layers of safety:
-      1. Keyword blocklist (rejects writes pre-execution, padded matching)
-      2. read_only=True at connection level
+      1. Allowlist (only a single SELECT/WITH read query passes; default-deny)
+      2. read_only=True at connection level (engine-level backstop)
       3. Row count cap on the returned data (MAX_ROWS_RETURNED)
 
     Note: DuckDB lacks a built-in statement timeout. For v1 we rely on
     the read-only mode + row cap. If long-query control becomes needed,
     wrap execution in a thread + threading.Timer that calls con.interrupt().
     """
-    banned = contains_banned_keyword(sql)
-    if banned:
+    violation = read_only_guard(sql)
+    if violation:
         return {
             "columns": [],
             "rows": [],
             "row_count": 0,
-            "error": f"Blocked: SQL contains banned keyword '{banned}' (read-only agent).",
+            "error": f"Blocked: {violation} (read-only agent).",
         }
 
     con = duckdb.connect(str(DB_PATH), read_only=True)

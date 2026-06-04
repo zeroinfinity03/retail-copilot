@@ -1084,7 +1084,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
 <span class="kw">return</span> response.choices[0].message.parsed</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The <code>SQLOutput</code> schema</strong> (what the LLM must return):</div>
 <pre><span class="kw">class</span> SQLOutput(BaseModel):
-    sql: Optional[<span class="kw">str</span>]       <span class="com"># SELECT-only DuckDB query, or None if out of scope</span>
+    sql: Optional[<span class="kw">str</span>]       <span class="com"># read query (SELECT/WITH), or None if out of scope</span>
     explanation: <span class="kw">str</span>          <span class="com"># one-line plain English summary (20 words max)</span></pre>
         <div class="step-desc" style="margin-top:8px;"><code>sql</code> can be <strong><code>None</code></strong>. That is how the LLM declines when the task is out of scope (e.g., asking for inventory levels the warehouse doesn't have). Step 2 handles that path. <code>explanation</code> is always populated, even when <code>sql=None</code>, so the synthesizer can phrase a graceful "data not available" reply.</div>
       </div>
@@ -1108,9 +1108,9 @@ llm_output = generate_sql(task)
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Safety check + DuckDB execute</div>
-        <div class="step-desc">Before the SQL hits the engine, the keyword blocklist scans for write operations (DROP/UPDATE/INSERT/...) using padded matching so column names like <code>UPDATED_AT</code> don't false-trigger. DuckDB opens in <code>read_only=True</code> mode for defense in depth. On success, returned rows are capped at 1,000.</div>
-<pre>banned = contains_banned_keyword(sql)
-<span class="kw">if</span> banned: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: '"</span>{banned}<span class="str">"'"</span>, ...}
+        <div class="step-desc">Before the SQL hits the engine, an <strong>allowlist</strong> gate permits only a <strong>single SELECT or WITH</strong> read query (default-deny). Everything else is rejected up front: writes (<code>DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE, ATTACH</code>), side-effect statements (<code>COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET</code>), and any second statement chained with <code>;</code>. DuckDB also opens in <code>read_only=True</code> mode as the engine-level backstop. On success, returned rows are capped at 1,000.</div>
+<pre>violation = read_only_guard(sql)          <span class="com"># only a single SELECT/WITH passes</span>
+<span class="kw">if</span> violation: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: "</span>{violation}, ...}
 
 con = duckdb.connect(str(DB_PATH), read_only=<span class="kw">True</span>)
 result_df = con.execute(sql).fetchdf()</pre>

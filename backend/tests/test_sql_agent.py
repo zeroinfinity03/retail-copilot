@@ -1,4 +1,4 @@
-"""SQL agent tests — keyword blocklist, output schema, sandbox execution.
+"""SQL agent tests — read-only allowlist, output schema, sandbox execution.
 
 Pure tests: don't hit the LLM. They verify the safety layers and the
 SQLOutput schema.
@@ -9,35 +9,53 @@ from pydantic import ValidationError
 
 from agents.sql_agent import (
     SQLOutput,
-    contains_banned_keyword,
+    read_only_guard,
     execute_sql,
 )
 
 
 # ============================================================
-# Keyword blocklist
+# Read-only allowlist (only a single SELECT / WITH query passes)
 # ============================================================
 
-def test_blocks_drop_statement():
-    assert contains_banned_keyword("DROP TABLE customers") == "DROP"
-
-
-def test_blocks_lowercase_delete():
-    assert contains_banned_keyword("delete from articles") == "DELETE"
-
-
 def test_allows_pure_select():
-    assert contains_banned_keyword("SELECT * FROM customers LIMIT 10") is None
+    assert read_only_guard("SELECT * FROM customers LIMIT 10") is None
+
+
+def test_allows_with_cte():
+    assert read_only_guard("WITH x AS (SELECT 1 AS n) SELECT n FROM x") is None
+
+
+def test_allows_trailing_semicolon():
+    assert read_only_guard("SELECT 1;") is None
 
 
 def test_allows_keyword_as_substring_in_column_name():
-    """UPDATED_AT contains 'UPDATE' as substring but isn't an UPDATE statement.
-    The padded-matching algorithm should let it through."""
-    assert contains_banned_keyword("SELECT updated_at FROM transactions") is None
+    """Columns like updated_at / created_by are fine: the allowlist only
+    looks at the leading keyword, not substrings."""
+    assert read_only_guard("SELECT updated_at FROM transactions") is None
+    assert read_only_guard("SELECT created_by FROM customers") is None
 
 
-def test_allows_created_by_column():
-    assert contains_banned_keyword("SELECT created_by FROM customers") is None
+def test_blocks_drop_statement():
+    assert read_only_guard("DROP TABLE customers") is not None
+
+
+def test_blocks_lowercase_delete():
+    assert read_only_guard("delete from articles") is not None
+
+
+def test_blocks_side_effect_statements():
+    """COPY / PRAGMA / INSTALL etc. are not SELECT/WITH, so they are rejected."""
+    assert read_only_guard("COPY (SELECT * FROM articles) TO 'out.csv'") is not None
+    assert read_only_guard("PRAGMA database_list") is not None
+    assert read_only_guard("INSTALL httpfs") is not None
+
+
+def test_blocks_chained_second_statement():
+    """A second statement smuggled in via ';' is rejected even though it
+    starts with SELECT."""
+    assert read_only_guard("SELECT 1; DROP TABLE customers") is not None
 
 
 # ============================================================
@@ -65,10 +83,9 @@ def test_sqloutput_requires_explanation():
 # execute_sql sandbox
 # ============================================================
 
-def test_execute_sql_blocks_banned_keyword():
+def test_execute_sql_blocks_non_select():
     """execute_sql must reject a DROP statement BEFORE hitting DuckDB."""
     result = execute_sql("DROP TABLE customers")
     assert result["rows"] == []
     assert result["error"] is not None
     assert "Blocked" in result["error"]
-    assert "DROP" in result["error"]

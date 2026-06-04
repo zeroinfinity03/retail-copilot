@@ -170,10 +170,12 @@ department_name (250 values — sample below; use `ILIKE '%term%'` for fuzzy mat
 
 
 <rules>
-1. SELECT-only. Never write INSERT, UPDATE, DELETE, DROP, ALTER,
+1. Read queries only: every query must start with SELECT or WITH (a CTE
+   that ends in SELECT). Never write INSERT, UPDATE, DELETE, DROP, ALTER,
    TRUNCATE, CREATE, ATTACH.
-   WHY: The runner uses a read-only DuckDB connection; any write attempt
-   fails and burns a retry.
+   WHY: The runner allows only a single SELECT or WITH query on a read-only
+   DuckDB connection; anything else is rejected before execution and burns
+   a retry.
 
 2. Add LIMIT to detail queries. Pure aggregates over groups (SUM, COUNT,
    AVG with GROUP BY) do not need LIMIT.
