@@ -1449,6 +1449,29 @@ result_df = con.execute(sql).fetchdf()</pre>
     <span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:       <span class="com"># 90 days minimum</span>
         result[<span class="str">"error"</span>] = <span class="str">f"Series too short for forecasting ({len(df)} days, need &gt;= {MIN_HISTORY_DAYS})."</span>
         <span class="kw">return</span> result</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The reshape helper</strong> <code>_rows_to_dataframe()</code> detects the date and value columns from the data itself (not column names) and returns a clean <code>ds</code> / <code>y</code> frame:</div>
+<pre><span class="kw">def</span> <span class="fn">_rows_to_dataframe</span>(sql_result: <span class="kw">dict</span>) -&gt; pd.DataFrame:
+    <span class="kw">if</span> <span class="kw">not</span> sql_result.get(<span class="str">"rows"</span>):
+        <span class="kw">raise</span> ValueError(<span class="str">"SQL agent returned no rows."</span>)
+    df = pd.DataFrame(sql_result[<span class="str">"rows"</span>])
+
+    <span class="com"># detect from the DATA, not column names:</span>
+    <span class="com"># first date-parseable col -> ds, first numeric col -> y</span>
+    date_col, value_col = <span class="kw">None</span>, <span class="kw">None</span>
+    <span class="kw">for</span> col <span class="kw">in</span> df.columns:
+        <span class="kw">if</span> date_col <span class="kw">is</span> <span class="kw">None</span>:
+            <span class="kw">try</span>:
+                pd.to_datetime(df[col].iloc[0]); date_col = col; <span class="kw">continue</span>
+            <span class="kw">except</span> (ValueError, TypeError):
+                <span class="kw">pass</span>
+        <span class="kw">if</span> value_col <span class="kw">is</span> <span class="kw">None</span> <span class="kw">and</span> pd.api.types.is_numeric_dtype(df[col]):
+            value_col = col
+    <span class="kw">if</span> date_col <span class="kw">is</span> <span class="kw">None</span> <span class="kw">or</span> value_col <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">raise</span> ValueError(<span class="str">"Couldn't find date + numeric columns."</span>)
+
+    out = df[[date_col, value_col]].rename(columns={date_col: <span class="str">"ds"</span>, value_col: <span class="str">"y"</span>})
+    out[<span class="str">"ds"</span>] = pd.to_datetime(out[<span class="str">"ds"</span>])
+    <span class="kw">return</span> out.dropna().sort_values(<span class="str">"ds"</span>).reset_index(drop=<span class="kw">True</span>)</pre>
       </div>
     </div>
 
