@@ -638,7 +638,7 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="body">
         <div class="step-title">Frontend &rarr; <code>main.py</code> via POST <code>/api/chat</code></div>
         <div class="step-desc">User types a question in the chat UI. The frontend collects the full message history (current message plus every prior exchange in this session), builds a JSON body, and posts it to the backend.</div>
-<pre><span class="com">// frontend/src/App.tsx</span>
+<pre><span class="com">// frontend/src/App.jsx</span>
 <span class="kw">await</span> fetch(<span class="str">"/api/chat"</span>, {
   method: <span class="str">"POST"</span>,
   headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
@@ -667,7 +667,7 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">2</div>
       <div class="body">
         <div class="step-title"><code>main.py</code> validates and dispatches to a worker thread</div>
-        <div class="step-desc">FastAPI validates the incoming JSON against the Pydantic <code>ChatRequest</code> schema below, a list of <code>Message</code> objects, each with a <code>role</code> and <code>content</code>. A malformed body is rejected with <code>422</code> before the handler runs. The handler then pulls the latest user message and ships the <strong>synchronous</strong> agent pipeline onto a worker thread via <code>asyncio.to_thread</code> (the <code>True</code> tells the supervisor to skip the synthesizer, which <code>main.py</code> streams itself), keeping the event loop free. Finally it returns a <code>StreamingResponse</code> that streams the synthesizer tokens and the chart to the frontend over <strong>SSE</strong>.</div>
+        <div class="step-desc">FastAPI validates the incoming JSON against the Pydantic <code>ChatRequest</code> schema below, a list of <code>Message</code> objects, each with a <code>role</code> and <code>content</code>. A malformed body is rejected with <code>422</code> before the handler runs. The handler then pulls the latest user message and ships the <strong>synchronous</strong> agent pipeline onto a worker thread via <code>asyncio.to_thread</code> (the <code>skip_synthesizer=True</code> argument tells the supervisor to skip the synthesizer, which <code>main.py</code> streams itself), keeping the event loop free. Finally it returns a <code>StreamingResponse</code> that streams the synthesizer tokens and the chart to the frontend over <strong>SSE</strong>.</div>
 <pre><span class="kw">class</span> Message(BaseModel):
     role: <span class="kw">str</span>
     content: <span class="kw">str</span>
@@ -680,7 +680,7 @@ The supervisor orchestrates; the rest do the actual work.
     user_query = [m <span class="kw">for</span> m <span class="kw">in</span> req.messages <span class="kw">if</span> m.role == <span class="str">"user"</span>][-1].content
     <span class="com"># list comprehension: keep only the user messages, then take the last one's content</span>
     <span class="com"># True = skip the synthesizer here; main.py streams it itself below</span>
-    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, <span class="kw">True</span>)
+    state = <span class="kw">await</span> asyncio.to_thread(run_pipeline, user_query, skip_synthesizer=<span class="kw">True</span>)
     <span class="kw">return</span> StreamingResponse(event_generator(), media_type=<span class="str">"text/event-stream"</span>)</pre>
       </div>
     </div>
@@ -1108,14 +1108,16 @@ llm_output = generate_sql(task)
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Safety check + DuckDB execute</div>
-        <div class="step-desc">Before the SQL hits the engine, an <strong>allowlist</strong> gate permits only a <strong>single SELECT or WITH</strong> read query (default-deny). Everything else is rejected up front: writes (<code>DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE, ATTACH</code>), side-effect statements (<code>COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET</code>), and any second statement chained with <code>;</code>. DuckDB also opens in <code>read_only=True</code> mode as the engine-level backstop. On success, returned rows are capped at 1,000.</div>
+        <div class="step-desc">Before the SQL hits the engine, an <strong>allowlist</strong> gate permits only a <strong>single SELECT or WITH</strong> read query (default-deny). Everything else is rejected up front: writes (<code>DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE, ATTACH</code>), side-effect statements (<code>COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET</code>), and any second statement chained with <code>;</code>. DuckDB also opens in <code>read_only=True</code> mode as the engine-level backstop. On success, the result returned to the supervisor is capped at 1,000 rows.</div>
 <pre><span class="com"># the allowlist gate (defined once; execute_sql calls it)</span>
 <span class="kw">def</span> <span class="fn">read_only_guard</span>(sql):
     cleaned = sql.strip()
     <span class="kw">if</span> cleaned.endswith(<span class="str">";"</span>):                <span class="com"># one trailing ';' is fine</span>
         cleaned = cleaned[:-1].strip()
-    <span class="kw">if</span> <span class="kw">not</span> cleaned:    <span class="kw">return</span> <span class="str">"empty query"</span>
-    <span class="kw">if</span> <span class="str">";"</span> <span class="kw">in</span> cleaned: <span class="kw">return</span> <span class="str">"only a single statement is allowed"</span>
+    <span class="kw">if</span> <span class="kw">not</span> cleaned:
+        <span class="kw">return</span> <span class="str">"empty query"</span>
+    <span class="kw">if</span> <span class="str">";"</span> <span class="kw">in</span> cleaned:
+        <span class="kw">return</span> <span class="str">"only a single statement is allowed"</span>
     <span class="kw">if</span> cleaned.split(<span class="kw">None</span>, 1)[0].upper() <span class="kw">not</span> <span class="kw">in</span> (<span class="str">"SELECT"</span>, <span class="str">"WITH"</span>):
         <span class="kw">return</span> <span class="str">"only SELECT or WITH (read-only) queries are allowed"</span>
     <span class="kw">return</span> <span class="kw">None</span>
