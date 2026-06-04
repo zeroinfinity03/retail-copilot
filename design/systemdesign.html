@@ -1109,7 +1109,7 @@ llm_output = generate_sql(task)
       <div class="body">
         <div class="step-title">Safety check + DuckDB execute</div>
         <div class="step-desc">Before the SQL hits the engine, an <strong>allowlist</strong> gate permits only a <strong>single SELECT or WITH</strong> read query (default-deny). Everything else is rejected up front: writes (<code>DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE, ATTACH</code>), side-effect statements (<code>COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET</code>), and any second statement chained with <code>;</code>. DuckDB also opens in <code>read_only=True</code> mode as the engine-level backstop. On success, returned rows are capped at 1,000.</div>
-<pre>violation = read_only_guard(sql)          <span class="com"># only a single SELECT/WITH passes</span>
+<pre>violation = read_only_guard(sql)          <span class="com"># only a single SELECT or WITH passes</span>
 <span class="kw">if</span> violation: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: "</span>{violation}, ...}
 
 con = duckdb.connect(str(DB_PATH), read_only=<span class="kw">True</span>)
