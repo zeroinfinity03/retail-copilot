@@ -740,7 +740,15 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="body">
         <div class="step-title">Parallel dispatch: code, research, and forecast in one superstep</div>
         <div class="step-desc">The supervisor walks the plan, groups <code>code</code>, <code>research</code>, and <code>forecast</code> into a parallel batch (they're independent), and submits each to a <code>ThreadPoolExecutor</code>. As each thread finishes, its result is written into the matching <code>state</code> slot via <code>as_completed</code>. Loop exits only when all parallel futures are done.</div>
-<pre><span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
+<pre><span class="com"># pick the agents that run in parallel (code / research / forecast are independent)</span>
+parallel_jobs = {}
+<span class="kw">for</span> step <span class="kw">in</span> plan.steps:
+    <span class="kw">if</span> step.agent <span class="kw">in</span> (<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>):
+        parallel_jobs[step.agent] = user_query   <span class="com"># each agent gets the full question</span>
+
+runners = {<span class="str">"sql"</span>: run_sql, <span class="str">"web"</span>: run_web, <span class="str">"forecast"</span>: run_forecast}
+
+<span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
     futures = {pool.submit(runners[a], task): a <span class="kw">for</span> a, task <span class="kw">in</span> parallel_jobs.items()}
     <span class="com"># dict comprehension: start each agent on a thread; map the returned future -&gt; agent name</span>
     <span class="kw">for</span> fut <span class="kw">in</span> as_completed(futures):
@@ -761,7 +769,10 @@ max(t_code, t_research, t_forecast)  ≈  max(3, 5, 7)  =  <span class="str">7 s
       <div class="body">
         <div class="step-title">Visualization agent runs sequentially (only if needed)</div>
         <div class="step-desc">Visualization cannot run in the parallel batch because it consumes the code agent's rows. The supervisor fires it after the parallel batch finishes, passing the code agent's rows directly. If there are no rows or visualization isn't in the plan, this step is skipped.</div>
-<pre><span class="kw">if</span> needs_chart <span class="kw">and</span> sql_out.get(<span class="str">"rows"</span>):
+<pre>needs_chart = <span class="kw">any</span>(s.agent == <span class="str">"chart"</span> <span class="kw">for</span> s <span class="kw">in</span> plan.steps)
+sql_out = state.get(<span class="str">"sql_results"</span>) <span class="kw">or</span> {}
+
+<span class="kw">if</span> needs_chart <span class="kw">and</span> sql_out.get(<span class="str">"rows"</span>):
     state[<span class="str">"chart_results"</span>] = run_chart(
         columns=sql_out[<span class="str">"columns"</span>],
         rows=sql_out[<span class="str">"rows"</span>],
