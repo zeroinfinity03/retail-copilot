@@ -461,7 +461,7 @@
     color: #444;
     line-height: 1.55;
   }
-  .flow-step pre, pre.run-overview {
+  .flow-step pre {
     background: #1e2733;
     color: #e8eaed;
     border-radius: 4px;
@@ -472,10 +472,10 @@
     font-family: "SF Mono", Menlo, monospace;
     line-height: 1.55;
   }
-  .flow-step pre .kw,  pre.run-overview .kw  { color: #ff79c6; }
-  .flow-step pre .str, pre.run-overview .str { color: #f1fa8c; }
-  .flow-step pre .com, pre.run-overview .com { color: #6272a4; font-style: italic; }
-  .flow-step pre .fn,  pre.run-overview .fn  { color: #50fa7b; }
+  .flow-step pre .kw  { color: #ff79c6; }
+  .flow-step pre .str { color: #f1fa8c; }
+  .flow-step pre .com { color: #6272a4; font-style: italic; }
+  .flow-step pre .fn  { color: #50fa7b; }
 </style>
 </head>
 <body>
@@ -1213,43 +1213,7 @@ result_df = con.execute(sql).fetchdf()</pre>
   </div>
 
   <h3>Internal flow: step by step</h3>
-  <div class="step-desc" style="margin:0 0 14px;">Here is the whole function exactly as it runs. <strong>Input:</strong> one argument <code>task</code> (the full user question). <strong>Output:</strong> the Output dict above (a plain <code>dict</code>, no Pydantic class). The four steps below zoom into each labelled part; the helpers <code>make_web_query</code> and <code>_empty_result</code> are defined in Step 1.</div>
-<pre class="run-overview"><span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:
-    <span class="com"># Step 1: extract a focused web query (or decline)</span>
-    spec = make_web_query(task)
-    <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
-        <span class="kw">return</span> _empty_result()
-
-    <span class="com"># Step 2: run the web search on that query</span>
-    messages = [
-        {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: PERPLEXITY_SYSTEM},
-        {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: spec.search_query},
-    ]
-    <span class="kw">try</span>:
-        response = _get_client().chat.completions.create(
-            model=MODEL, messages=messages,
-            extra_body={
-                <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
-                <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
-            },
-        )
-    <span class="kw">except</span> Exception <span class="kw">as</span> e:
-        <span class="kw">return</span> _empty_result(error=str(e))
-
-    <span class="com"># Step 3: parse the response (extra fields via model_dump)</span>
-    data = response.model_dump()
-    answer = data[<span class="str">"choices"</span>][0][<span class="str">"message"</span>][<span class="str">"content"</span>]
-    citations = data.get(<span class="str">"citations"</span>) <span class="kw">or</span> []
-    num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="str">"num_search_queries"</span>, 0)
-
-    <span class="com"># Step 4: return the result dict to the supervisor</span>
-    <span class="kw">return</span> {
-        <span class="str">"answer"</span>: answer,
-        <span class="str">"citations"</span>: citations,
-        <span class="str">"search_queries_run"</span>: num_queries,
-        <span class="str">"model"</span>: MODEL,
-        <span class="str">"error"</span>: <span class="kw">None</span>,
-    }</pre>
+  <div class="step-desc" style="margin:0 0 14px;">The four steps below <em>are</em> the body of the agent's entry point, <code>run(task: str) -&gt; dict</code>, executed in order. It returns the Output dict shown above (a plain <code>dict</code>, no Pydantic class). The two helpers it calls (<code>make_web_query</code>, <code>_empty_result</code>) are defined just above <code>run</code> in Step 1.</div>
   <div class="flow-steps">
 
     <div class="flow-step">
@@ -1275,10 +1239,11 @@ result_df = con.execute(sql).fetchdf()</pre>
     <span class="kw">return</span> {<span class="str">"answer"</span>: <span class="kw">None</span>, <span class="str">"citations"</span>: [], <span class="str">"search_queries_run"</span>: 0,
             <span class="str">"model"</span>: MODEL, <span class="str">"error"</span>: error}
 
-<span class="com"># inside run():</span>
-spec = make_web_query(task)        <span class="com"># spec is a WebQuery object: spec.search_query is str | None</span>
-<span class="kw">if</span> <span class="kw">not</span> spec.search_query:
-    <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
+<span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:        <span class="com"># the agent entry point; Steps 2-4 below continue it</span>
+    <span class="com"># Step 1: extract a focused web query (or decline)</span>
+    spec = make_web_query(task)        <span class="com"># spec is a WebQuery object: spec.search_query is str | None</span>
+    <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
+        <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
       </div>
     </div>
 
