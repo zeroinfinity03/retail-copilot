@@ -724,7 +724,7 @@ The supervisor orchestrates; the rest do the actual work.
     rationale: <span class="kw">str</span>
     steps: <span class="kw">list</span>[PlanStep]</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Example output</strong> for the query <em>"Project Ladieswear revenue for the next 90 days and tell me what the market expects for womenswear in 2026"</em>, the planner returns:</div>
-<pre>Plan(
+<pre>plan = Plan(
     rationale=<span class="str">"internal forecast and external market view are "</span>
               <span class="str">"independent, fan them out in parallel"</span>,
     steps=[
