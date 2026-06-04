@@ -1213,7 +1213,6 @@ result_df = con.execute(sql).fetchdf()</pre>
   </div>
 
   <h3>Internal flow: step by step</h3>
-  <div class="step-desc" style="margin:0 0 14px;">The four steps below <em>are</em> the body of the agent's entry point, <code>run(task: str) -&gt; dict</code>, executed in order. It returns the Output dict shown above (a plain <code>dict</code>, no Pydantic class). The two helpers it calls (<code>make_web_query</code>, <code>_empty_result</code>) are defined just above <code>run</code> in Step 1.</div>
   <div class="flow-steps">
 
     <div class="flow-step">
