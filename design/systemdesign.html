@@ -1109,7 +1109,19 @@ llm_output = generate_sql(task)
       <div class="body">
         <div class="step-title">Safety check + DuckDB execute</div>
         <div class="step-desc">Before the SQL hits the engine, an <strong>allowlist</strong> gate permits only a <strong>single SELECT or WITH</strong> read query (default-deny). Everything else is rejected up front: writes (<code>DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE, ATTACH</code>), side-effect statements (<code>COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET</code>), and any second statement chained with <code>;</code>. DuckDB also opens in <code>read_only=True</code> mode as the engine-level backstop. On success, returned rows are capped at 1,000.</div>
-<pre>violation = read_only_guard(sql)          <span class="com"># only a single SELECT or WITH passes</span>
+<pre><span class="com"># the allowlist gate (defined once; execute_sql calls it)</span>
+<span class="kw">def</span> <span class="fn">read_only_guard</span>(sql):
+    cleaned = sql.strip()
+    <span class="kw">if</span> cleaned.endswith(<span class="str">";"</span>):                <span class="com"># one trailing ';' is fine</span>
+        cleaned = cleaned[:-1].strip()
+    <span class="kw">if</span> <span class="kw">not</span> cleaned:    <span class="kw">return</span> <span class="str">"empty query"</span>
+    <span class="kw">if</span> <span class="str">";"</span> <span class="kw">in</span> cleaned: <span class="kw">return</span> <span class="str">"only a single statement is allowed"</span>
+    <span class="kw">if</span> cleaned.split(<span class="kw">None</span>, 1)[0].upper() <span class="kw">not</span> <span class="kw">in</span> (<span class="str">"SELECT"</span>, <span class="str">"WITH"</span>):
+        <span class="kw">return</span> <span class="str">"only SELECT or WITH (read-only) queries are allowed"</span>
+    <span class="kw">return</span> <span class="kw">None</span>
+
+<span class="com"># then, inside execute_sql:</span>
+violation = read_only_guard(sql)
 <span class="kw">if</span> violation: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: "</span>{violation}, ...}
 
 con = duckdb.connect(str(DB_PATH), read_only=<span class="kw">True</span>)
