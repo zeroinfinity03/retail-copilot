@@ -1219,7 +1219,22 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title">Extract a focused web query (or decline)</div>
         <div class="step-desc">A gateway LLM call reads the full question and returns one focused web-search query, or <code>null</code> when nothing needs the web (H&M internal data or a pure forecast). This is the same "parse the task into a focused sub-task" pattern the forecast agent uses. The prompt carries the agent's identity (H&M and its competitors) and the in-scope / out-of-scope boundary, so "competitors" resolves to real brands and internal-data questions decline. When <code>search_query</code> is null the agent returns an empty result immediately, with no web search call.</div>
-<pre>spec = make_web_query(task)        <span class="com"># {search_query: str | null}</span>
+<pre><span class="kw">class</span> WebQuery(BaseModel):
+    search_query: Optional[<span class="kw">str</span>]   <span class="com"># focused web query, or None to decline</span>
+
+<span class="kw">def</span> <span class="fn">make_web_query</span>(task):
+    response = client.chat.completions.parse(
+        model=LLM_MODEL,          <span class="com"># via the llm.py provider gateway</span>
+        messages=[
+            {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: load_system_prompt()},
+            {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: task},
+        ],
+        response_format=WebQuery,
+    )
+    <span class="kw">return</span> response.choices[0].message.parsed
+
+<span class="com"># inside run():</span>
+spec = make_web_query(task)        <span class="com"># WebQuery: {search_query: str | None}</span>
 <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
     <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
       </div>
