@@ -1235,7 +1235,7 @@ result_df = con.execute(sql).fetchdf()</pre>
     <span class="kw">return</span> response.choices[0].message.parsed
 
 <span class="com"># inside run():</span>
-spec = make_web_query(task)        <span class="com"># WebQuery: {search_query: str | None}</span>
+spec = make_web_query(task)        <span class="com"># spec is a WebQuery object: spec.search_query is str | None</span>
 <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
     <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
       </div>
