@@ -1394,7 +1394,21 @@ result_df = con.execute(sql).fetchdf()</pre>
         <div class="step-desc" style="margin-top:8px;">The <code>horizon_days</code> hard-cap at 180 lives in the schema itself (<code>le=180</code>). Beyond that, confidence bands explode on a 24-month series, so the agent refuses earlier rather than producing low-quality projections.</div>
 <pre><span class="com"># inside run fn:</span>
 <span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>, verbose: <span class="kw">bool</span> = <span class="kw">False</span>) -&gt; <span class="kw">dict</span>:
-    result = {...}                          <span class="com"># all keys pre-filled (see Output above)</span>
+    result = {                              <span class="com"># pre-filled: every return path gives this same shape</span>
+        <span class="str">"spec"</span>:              <span class="kw">None</span>,
+        <span class="str">"sql"</span>:               <span class="kw">None</span>,
+        <span class="str">"series_label"</span>:      <span class="str">""</span>,
+        <span class="str">"historical"</span>:        [],
+        <span class="str">"prophet_forecast"</span>:  <span class="kw">None</span>,
+        <span class="str">"sarima_forecast"</span>:   <span class="kw">None</span>,
+        <span class="str">"ensemble_forecast"</span>: <span class="kw">None</span>,
+        <span class="str">"horizon_days"</span>:      0,
+        <span class="str">"metrics"</span>:           {},
+        <span class="str">"values_table"</span>:      [],
+        <span class="str">"chart_html"</span>:        <span class="kw">None</span>,
+        <span class="str">"explanation"</span>:       <span class="str">""</span>,
+        <span class="str">"error"</span>:             <span class="kw">None</span>,
+    }
     <span class="kw">try</span>:
         spec = make_forecast_spec(task)     <span class="com"># ForecastSpec object</span>
     <span class="kw">except</span> Exception <span class="kw">as</span> e:
