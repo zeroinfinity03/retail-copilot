@@ -695,8 +695,10 @@ The supervisor orchestrates; the rest do the actual work.
     state = {
         <span class="str">"user_query"</span>: user_query,
         <span class="str">"plan"</span>: plan.model_dump(),
-        <span class="str">"sql_results"</span>: <span class="kw">None</span>, <span class="str">"web_results"</span>: <span class="kw">None</span>,
-        <span class="str">"forecast_results"</span>: <span class="kw">None</span>, <span class="str">"chart_results"</span>: <span class="kw">None</span>,
+        <span class="str">"sql_results"</span>: <span class="kw">None</span>,
+        <span class="str">"web_results"</span>: <span class="kw">None</span>,
+        <span class="str">"forecast_results"</span>: <span class="kw">None</span>,
+        <span class="str">"chart_results"</span>: <span class="kw">None</span>,
         <span class="str">"final_report"</span>: <span class="kw">None</span>,
     }</pre>
       </div>
@@ -706,9 +708,9 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">4</div>
       <div class="body">
         <div class="step-title"><code>make_plan()</code>: the planner LLM call</div>
-        <div class="step-desc">One structured-output call through the <code>llm.py</code> provider gateway (<code>deepseek-v4-flash</code> by default). The supervisor system prompt is loaded from disk, the user query is appended, and the gateway's <code>structured()</code> helper forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text, only a valid <code>Plan</code>.</div>
+        <div class="step-desc">One structured-output call through the <code>llm.py</code> provider gateway. The supervisor system prompt is loaded from disk, the user query is appended, and the gateway's <code>structured()</code> helper forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text, only a valid <code>Plan</code>.</div>
 <pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
+    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=Plan,
 )
@@ -1055,7 +1057,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
         <div class="step-title">Supervisor sends a task &rarr; <code>generate_sql()</code> LLM call</div>
         <div class="step-desc">The full user question arrives (e.g., <em>"Top 5 Ladieswear sellers last quarter"</em>). The agent loads its system prompt (which tells it to handle only the data part), combines it with the question, and makes a single structured-output call that returns a typed <code>SQLOutput</code> object. The LLM never touches the database.</div>
 <pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
+    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=SQLOutput,
 )
@@ -1127,15 +1129,15 @@ result_df = con.execute(sql).fetchdf()</pre>
 
 <div class="agent-section web" id="web-agent">
   <span class="agent-tag web">RESEARCH AGENT</span>
-  <h2>Live market intelligence via Perplexity Sonar Pro</h2>
+  <h2>Live market intelligence via web search</h2>
 
   <p>
     Competitor news, industry trends, pricing changes, consumer
     sentiment, and general factual questions the warehouse cannot answer.
     The agent first turns the full question into one focused web query
-    (or declines if nothing needs the web), then hands that query to
-    Sonar Pro, which expands sub-queries, searches the web, reads pages,
-    and synthesizes a grounded answer with source citations.
+    (or declines if nothing needs the web), then runs a live web search
+    that expands sub-queries, searches the web, reads pages, and
+    synthesizes a grounded answer with source citations.
   </p>
 
   <div class="agent-grid">
@@ -1167,7 +1169,7 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="num">1</div>
       <div class="body">
         <div class="step-title">Extract a focused web query (or decline)</div>
-        <div class="step-desc">A gateway LLM call (deepseek-v4-flash) reads the full question and returns one focused web-search query, or <code>null</code> when nothing needs the web (H&M internal data or a pure forecast). This is the same "parse the task into a focused sub-task" pattern the forecast agent uses. The prompt carries the agent's identity (H&M and its competitors) and the in-scope / out-of-scope boundary, so "competitors" resolves to real brands and internal-data questions decline. When <code>search_query</code> is null the agent returns an empty result immediately, with no Perplexity call.</div>
+        <div class="step-desc">A gateway LLM call reads the full question and returns one focused web-search query, or <code>null</code> when nothing needs the web (H&M internal data or a pure forecast). This is the same "parse the task into a focused sub-task" pattern the forecast agent uses. The prompt carries the agent's identity (H&M and its competitors) and the in-scope / out-of-scope boundary, so "competitors" resolves to real brands and internal-data questions decline. When <code>search_query</code> is null the agent returns an empty result immediately, with no web search call.</div>
 <pre>spec = make_web_query(task)        <span class="com"># {search_query: str | null}</span>
 <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
     <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
@@ -1177,8 +1179,8 @@ result_df = con.execute(sql).fetchdf()</pre>
     <div class="flow-step">
       <div class="num">2</div>
       <div class="body">
-        <div class="step-title">Call Perplexity Sonar Pro on the focused query</div>
-        <div class="step-desc">The focused query (not the raw question) becomes the user message, with a short style-only system prompt that governs how Perplexity writes the answer. The agent uses the OpenAI SDK with <code>base_url</code> pointed at Perplexity, wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
+        <div class="step-title">Run the web search on the focused query</div>
+        <div class="step-desc">The focused query (not the raw question) becomes the user message, with a short style-only system prompt that governs how the answer is written. The agent uses the OpenAI SDK with <code>base_url</code> pointed at the web search API, wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
 <pre>messages = [
     {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: PERPLEXITY_SYSTEM},
     {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: spec.search_query},
@@ -1188,23 +1190,23 @@ result_df = con.execute(sql).fetchdf()</pre>
     api_key=os.getenv(<span class="str">"PERPLEXITY_API_KEY"</span>),
     base_url=<span class="str">"https://api.perplexity.ai"</span>,
 )</pre>
-        <div class="step-desc" style="margin-top:8px;">Because Perplexity is OpenAI-compatible, every other line of code looks identical to a regular OpenAI call: same client, same <code>chat.completions.create()</code> shape, no special library:</div>
+        <div class="step-desc" style="margin-top:8px;">Because the web search API is OpenAI-compatible, every other line of code looks identical to a regular OpenAI call: same client, same <code>chat.completions.create()</code> shape, no special library:</div>
 <pre>response = _get_client().chat.completions.create(
-    model=<span class="str">"sonar-pro"</span>,
+    model=MODEL,
     messages=messages,
     extra_body={
         <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
         <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
     },
 )</pre>
-        <div class="step-desc" style="margin-top:8px;"><strong>The two <code>extra_body</code> parameters</strong> are Perplexity-specific options that the OpenAI SDK doesn't know about, so they ride through <code>extra_body</code>:</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>The two <code>extra_body</code> parameters</strong> are web-search-specific options that the OpenAI SDK doesn't know about, so they ride through <code>extra_body</code>:</div>
 <pre>┌──────────────────────────────────────────┬────────┬───────────────────────────────────┐
 │ Parameter                                │ Value  │ Effect                            │
 ├──────────────────────────────────────────┼────────┼───────────────────────────────────┤
 │ web_search_options.search_context_size   │ "high" │ Read more pages, deeper context   │
 │ search_recency_filter                    │ "year" │ Bias toward last-year content     │
 └──────────────────────────────────────────┴────────┴───────────────────────────────────┘</pre>
-        <div class="step-desc" style="margin-top:8px;"><strong>Inside Sonar Pro (black box).</strong> Perplexity does: sub-query expansion → parallel web search → page reads → synthesis with citations. The agent doesn't see any of this. It just receives a response object with the answer + citation URLs attached.</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Inside the web search (black box).</strong> The service does: sub-query expansion → parallel web search → page reads → synthesis with citations. The agent doesn't see any of this. It just receives a response object with the answer + citation URLs attached.</div>
       </div>
     </div>
 
@@ -1212,7 +1214,7 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Parse response: <code>model_dump()</code> for non-standard fields</div>
-        <div class="step-desc">Perplexity returns extra fields (<code>citations</code>, <code>search_results</code>, etc.) that the OpenAI SDK's typed model doesn't know about. <code>response.model_dump()</code> converts the Pydantic object into a plain dict so the agent can pull the answer text, citation URLs, and search-query count.</div>
+        <div class="step-desc">The web search API returns extra fields (<code>citations</code>, <code>search_results</code>, etc.) that the OpenAI SDK's typed model doesn't know about. <code>response.model_dump()</code> converts the Pydantic object into a plain dict so the agent can pull the answer text, citation URLs, and search-query count.</div>
 <pre>data = response.model_dump()
 answer = data[<span class="str">"choices"</span>][0][<span class="str">"message"</span>][<span class="str">"content"</span>]
 citations = data.get(<span class="str">"citations"</span>) <span class="kw">or</span> []
@@ -1230,16 +1232,16 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
     <span class="str">"answer"</span>: answer,
     <span class="str">"citations"</span>: citations,
     <span class="str">"search_queries_run"</span>: num_queries,
-    <span class="str">"model"</span>: <span class="str">"sonar-pro"</span>,
+    <span class="str">"model"</span>: MODEL,
     <span class="str">"error"</span>: <span class="kw">None</span>,
 }</pre>
-        <div class="step-desc" style="margin-top:8px;"><strong>Failure path returns the same keys, different values.</strong> If the Sonar Pro call raised (network error, invalid key, rate limit), the <code>except</code> branch returns:</div>
+        <div class="step-desc" style="margin-top:8px;"><strong>Failure path returns the same keys, different values.</strong> If the web search call raised (network error, invalid key, rate limit), the <code>except</code> branch returns:</div>
 <pre><span class="com"># Failure path: same keys, error-shaped values</span>
 <span class="kw">return</span> {
     <span class="str">"answer"</span>: <span class="kw">None</span>,
     <span class="str">"citations"</span>: [],
     <span class="str">"search_queries_run"</span>: 0,
-    <span class="str">"model"</span>: <span class="str">"sonar-pro"</span>,
+    <span class="str">"model"</span>: MODEL,
     <span class="str">"error"</span>: <span class="kw">str</span>(e),         <span class="com"># the exception message</span>
 }</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why the shapes match.</strong> Downstream code (supervisor, synthesizer, frontend) never has to special-case "did web fail" by checking the dict shape, because the same keys are always present. Callers just check <code>error</code>: <code>None</code> means use the answer + citations, and anything else means surface the error in the final report. One contract, two code paths.</div>
@@ -1300,7 +1302,7 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
         <div class="step-title"><code>make_forecast_spec()</code>: LLM parses the task into a typed <code>ForecastSpec</code></div>
         <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
 <pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
+    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=ForecastSpec,
 )
@@ -1569,7 +1571,7 @@ user_question: str            <span style="color:#777;"># the original NL query<
         <div class="step-title"><code>get_chart_spec()</code>: LLM picks the chart type and columns</div>
         <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 12), the x / y / z column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
 <pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
+    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
     response_format=ChartSpec,
 )</pre>
@@ -1750,7 +1752,7 @@ fig = px.density_heatmap(..., z=spec.z_column, histfunc=<span class="str">"avg"<
         <div class="step-title">Single LLM call: returns free-form markdown narrative</div>
         <div class="step-desc">Unlike most other agents, the synthesizer does NOT use structured outputs. It returns prose. The system prompt enforces style rules (lead with the answer, write no source URLs since the app renders the sources after the charts, translate stat jargon, never write a "### Chart" header, etc.). Errors are caught and returned as <code>error</code> in the result dict.</div>
 <pre>response = client.chat.completions.create(
-    model=LLM_MODEL,   <span class="com"># deepseek-v4-flash, via the llm.py provider gateway</span>
+    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
     messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
 )
 final_report = response.choices[0].message.content</pre>
@@ -1971,11 +1973,11 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
     <!-- Amazon Bedrock -->
     <rect x="324" y="432" width="252" height="72" rx="10" fill="#fff4d4" stroke="#ff9900" stroke-width="2"/>
     <text x="450" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#9a6800">Amazon Bedrock</text>
-    <text x="450" y="486" text-anchor="middle" font-size="10.5" fill="#9a6800">Claude, model calls (IAM, no key)</text>
+    <text x="450" y="486" text-anchor="middle" font-size="10.5" fill="#9a6800">model calls (IAM, no key)</text>
 
-    <!-- Perplexity -->
+    <!-- web search -->
     <rect x="598" y="432" width="252" height="72" rx="10" fill="#e0e4f0" stroke="#5b6ee0" stroke-width="2"/>
-    <text x="724" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#3a48a8">Perplexity, Sonar Pro</text>
+    <text x="724" y="467" text-anchor="middle" font-size="13" font-weight="700" fill="#3a48a8">Web search</text>
     <text x="724" y="486" text-anchor="middle" font-size="10.5" fill="#4a55b0">web search (one secret)</text>
   </svg>
 </div>
@@ -1985,7 +1987,7 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
   (Cloudflare Pages also works and is cheaper), the FastAPI app as a <strong>single
   small container on ECS Fargate behind an ALB</strong>, the DuckDB file pulled from
   <strong>S3</strong>, LLM calls pointed at <strong>Amazon Bedrock</strong>, and the
-  one genuinely external dependency (Perplexity) kept as-is with its key in Secrets
+  one genuinely external dependency (the web search API) kept as-is with its key in Secrets
   Manager.
 </p>
 
@@ -2044,7 +2046,7 @@ docker push ACCT.dkr.ecr.REGION.amazonaws.com/retail-copilot-api</pre>
 s3:GetObject                          <span class="com"># the warehouse file</span>
 bedrock:InvokeModel                   <span class="com"># the agent model calls</span>
 bedrock:InvokeModelWithResponseStream <span class="com"># the streamed synthesizer</span>
-secretsmanager:GetSecretValue         <span class="com"># the Perplexity key only</span></pre>
+secretsmanager:GetSecretValue         <span class="com"># the web search key only</span></pre>
     </div>
   </div>
 
@@ -2052,14 +2054,14 @@ secretsmanager:GetSecretValue         <span class="com"># the Perplexity key onl
     <div class="num">5</div>
     <div class="body">
       <div class="step-title">Point the model calls at Bedrock, one file, no API keys</div>
-      <div class="step-desc"><code>llm.py</code> is already a <strong>provider gateway</strong>, <code>LLM_PROVIDER=openai|deepseek</code> picks the client, and every agent calls one <code>structured(messages, schema)</code> helper through it. Adding <strong>Amazon Bedrock</strong> is the same pattern: a <code>bedrock</code> branch in that one file, pointed at the <code>bedrock-runtime</code> <strong>Converse</strong> API. Auth is then <strong>IAM via the task role</strong> from step&nbsp;4, <strong>no model key anywhere</strong> (today&rsquo;s <code>.env</code> key disappears). Structured output maps cleanly to Bedrock <strong>tool use</strong>: force one tool whose input schema is the Pydantic model. The synthesizer uses <code>ConverseStream</code> for token streaming. You are <strong>not locked to Claude</strong>, any Bedrock model (Llama, Titan, Mistral&hellip;) is a one-line model-ID change.</div>
+      <div class="step-desc"><code>llm.py</code> is already a <strong>provider gateway</strong>, <code>LLM_PROVIDER</code> picks the client, and every agent calls one <code>structured(messages, schema)</code> helper through it. Adding <strong>Amazon Bedrock</strong> is the same pattern: a <code>bedrock</code> branch in that one file, pointed at the <code>bedrock-runtime</code> <strong>Converse</strong> API. Auth is then <strong>IAM via the task role</strong> from step&nbsp;4, <strong>no model key anywhere</strong> (today&rsquo;s <code>.env</code> key disappears). Structured output maps cleanly to Bedrock <strong>tool use</strong>: force one tool whose input schema is the Pydantic model. The synthesizer uses <code>ConverseStream</code> for token streaming. You are <strong>not locked to any single model</strong>: any Bedrock model is a one-line model-ID change.</div>
 <pre><span class="com"># backend/agents/llm.py, add a `bedrock` provider branch</span>
 <span class="kw">import</span> boto3
 _bedrock = boto3.client(<span class="str">"bedrock-runtime"</span>)        <span class="com"># IAM auth, no API key</span>
 
 <span class="kw">def</span> <span class="fn">structured</span>(messages, schema):
     resp = _bedrock.converse(
-        modelId=<span class="str">"anthropic.claude-..."</span>,            <span class="com"># swap model freely</span>
+        modelId=<span class="str">"..."</span>,                          <span class="com"># swap model freely</span>
         messages=messages,
         toolConfig={<span class="str">"tools"</span>: [tool_from(schema)],   <span class="com"># forced tool = strict schema</span>
                     <span class="str">"toolChoice"</span>: {<span class="str">"any"</span>: {}}},
@@ -2071,8 +2073,8 @@ _bedrock = boto3.client(<span class="str">"bedrock-runtime"</span>)        <span
   <div class="flow-step">
     <div class="num">6</div>
     <div class="body">
-      <div class="step-title">Keep Perplexity for live web search (the one external key)</div>
-      <div class="step-desc">Bedrock/Claude doesn&rsquo;t browse the live web, and there is no AWS-native drop-in for &ldquo;search the web and return citations.&rdquo; So the <strong>web research agent stays on Perplexity Sonar Pro</strong>, the one genuinely external call, and the only thing that still needs a key. Store that key in <strong>Secrets Manager</strong> (not <code>.env</code>) and inject it into the task as a secret. Net split: <strong>five agents&rsquo; model calls &rarr; Bedrock (IAM, no key); one agent&rsquo;s web search &rarr; Perplexity (one secret)</strong>.</div>
+      <div class="step-title">Keep the external web search (the one external key)</div>
+      <div class="step-desc">Bedrock doesn&rsquo;t browse the live web, and there is no AWS-native drop-in for &ldquo;search the web and return citations.&rdquo; So the <strong>web research agent stays on its external web search API</strong>, the one genuinely external call, and the only thing that still needs a key. Store that key in <strong>Secrets Manager</strong> (not <code>.env</code>) and inject it into the task as a secret. Net split: <strong>five agents&rsquo; model calls &rarr; Bedrock (IAM, no key); one agent&rsquo;s web search &rarr; external API (one secret)</strong>.</div>
 <pre>aws secretsmanager create-secret --name retail/perplexity \
   --secret-string <span class="str">'{"PERPLEXITY_API_KEY":"pplx-..."}'</span>
 <span class="com"># referenced by the ECS task definition as a secret env var</span></pre>
