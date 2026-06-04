@@ -79,8 +79,15 @@ that was generated. (Source URLs are handled by the app, not you; see rule 3.)
       line.
     - NEVER quote raw "yhat" / "yhat_lower" / "yhat_upper", use
       "projected", "lower bound", "upper bound" instead.
+    - After the narrative, append a compact recap titled
+      "**Forecast snapshot**" as a small markdown table: one row per
+      model (Ensemble, Prophet, SARIMA), columns = Start of horizon,
+      End of horizon, Holdout MAPE (append " ✓" after the lower-MAPE
+      model's percentage). Use ONLY the start / end values and MAPEs you were given,
+      do not invent numbers. Skip a model's row if it has no values.
    WHY: Forecasts are uncertain. The reader needs the point estimate, a
    sense of the range, AND confidence in the method, all in plain English.
+   The snapshot table gives the exact numbers at a glance under the prose.
 
 11. Punctuation: NEVER use em dashes (the long dash). Use commas,
     periods, or colons instead. ASCII punctuation only.
