@@ -1236,10 +1236,9 @@ result_df = con.execute(sql).fetchdf()</pre>
 
 <span class="kw">def</span> <span class="fn">_empty_result</span>(error: Optional[<span class="kw">str</span>] = <span class="kw">None</span>) -&gt; <span class="kw">dict</span>:  <span class="com"># decline + error paths both return this exact shape</span>
     <span class="kw">return</span> {<span class="str">"answer"</span>: <span class="kw">None</span>, <span class="str">"citations"</span>: [], <span class="str">"search_queries_run"</span>: 0,
-            <span class="str">"model"</span>: MODEL, <span class="str">"error"</span>: error}
-
-<span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:        <span class="com"># the agent entry point; Steps 2-4 below continue it</span>
-    <span class="com"># Step 1: extract a focused web query (or decline)</span>
+            <span class="str">"model"</span>: MODEL, <span class="str">"error"</span>: error}</pre>
+<pre><span class="com"># inside run fn:</span>
+<span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:
     spec = make_web_query(task)        <span class="com"># spec is a WebQuery object: spec.search_query is str | None</span>
     <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
         <span class="kw">return</span> _empty_result()         <span class="com"># decline, nothing to research</span></pre>
@@ -1251,25 +1250,27 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title">Run the web search on the focused query</div>
         <div class="step-desc">The focused query (not the raw question) becomes the user message, with a short style-only system prompt that governs how the answer is written. The agent uses the OpenAI SDK with <code>base_url</code> pointed at the web search API, wrapped in <code>try/except</code> so a network failure returns an error dict instead of crashing.</div>
-<pre>messages = [
-    {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: PERPLEXITY_SYSTEM},
-    {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: spec.search_query},
-]</pre>
+<pre><span class="com"># inside run fn (continued):</span>
+    messages = [
+        {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: PERPLEXITY_SYSTEM},
+        {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: spec.search_query},
+    ]
+    <span class="kw">try</span>:
+        response = _get_client().chat.completions.create(
+            model=MODEL, messages=messages,
+            extra_body={
+                <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
+                <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
+            },
+        )
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        <span class="kw">return</span> _empty_result(error=str(e))</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Client setup: same SDK, different URL.</strong> The agent uses the OpenAI Python SDK with <code>base_url</code> rewritten:</div>
 <pre>_client = OpenAI(
     api_key=os.getenv(<span class="str">"PERPLEXITY_API_KEY"</span>),
     base_url=<span class="str">"https://api.perplexity.ai"</span>,
 )</pre>
-        <div class="step-desc" style="margin-top:8px;">Because the web search API is OpenAI-compatible, every other line of code looks identical to a regular OpenAI call: same client, same <code>chat.completions.create()</code> shape, no special library:</div>
-<pre>response = _get_client().chat.completions.create(
-    model=MODEL,
-    messages=messages,
-    extra_body={
-        <span class="str">"web_search_options"</span>: {<span class="str">"search_context_size"</span>: <span class="str">"high"</span>},
-        <span class="str">"search_recency_filter"</span>: <span class="str">"year"</span>,
-    },
-)</pre>
-        <div class="step-desc" style="margin-top:8px;"><strong>The two <code>extra_body</code> parameters</strong> are web-search-specific options that the OpenAI SDK doesn't know about, so they ride through <code>extra_body</code>:</div>
+        <div class="step-desc" style="margin-top:8px;">Because the web search API is OpenAI-compatible, the <code>create()</code> call above is an ordinary OpenAI call with <code>base_url</code> swapped, no special library. <strong>The two <code>extra_body</code> parameters</strong> are web-search-specific options the OpenAI SDK doesn't know about, so they ride through <code>extra_body</code>:</div>
 <pre>┌──────────────────────────────────────────┬────────┬───────────────────────────────────┐
 │ Parameter                                │ Value  │ Effect                            │
 ├──────────────────────────────────────────┼────────┼───────────────────────────────────┤
@@ -1285,10 +1286,11 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title">Parse response: <code>model_dump()</code> for non-standard fields</div>
         <div class="step-desc">The web search API returns extra fields (<code>citations</code>, <code>search_results</code>, etc.) that the OpenAI SDK's typed model doesn't know about. <code>response.model_dump()</code> converts the Pydantic object into a plain dict so the agent can pull the answer text, citation URLs, and search-query count.</div>
-<pre>data = response.model_dump()
-answer = data[<span class="str">"choices"</span>][0][<span class="str">"message"</span>][<span class="str">"content"</span>]
-citations = data.get(<span class="str">"citations"</span>) <span class="kw">or</span> []
-num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="str">"num_search_queries"</span>, 0)</pre>
+<pre><span class="com"># inside run fn (continued):</span>
+    data = response.model_dump()
+    answer = data[<span class="str">"choices"</span>][0][<span class="str">"message"</span>][<span class="str">"content"</span>]
+    citations = data.get(<span class="str">"citations"</span>) <span class="kw">or</span> []
+    num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="str">"num_search_queries"</span>, 0)</pre>
       </div>
     </div>
 
@@ -1297,14 +1299,14 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="body">
         <div class="step-title">Return result dict to supervisor</div>
         <div class="step-desc">The agent returns a consistent dict shape on both the happy path and the failure path: <code>answer</code>, <code>citations</code>, <code>search_queries_run</code>, <code>model</code>, <code>error</code>. Supervisor stores it in <code>state["web_results"]</code>. The synthesizer never sees the URLs; <code>main.py</code> sends them in the SSE <code>complete</code> event and the frontend renders them as a Sources list below the charts.</div>
-<pre><span class="com"># Success path</span>
-<span class="kw">return</span> {
-    <span class="str">"answer"</span>: answer,
-    <span class="str">"citations"</span>: citations,
-    <span class="str">"search_queries_run"</span>: num_queries,
-    <span class="str">"model"</span>: MODEL,
-    <span class="str">"error"</span>: <span class="kw">None</span>,
-}</pre>
+<pre><span class="com"># inside run fn (continued) — success path:</span>
+    return {
+        <span class="str">"answer"</span>: answer,
+        <span class="str">"citations"</span>: citations,
+        <span class="str">"search_queries_run"</span>: num_queries,
+        <span class="str">"model"</span>: MODEL,
+        <span class="str">"error"</span>: <span class="kw">None</span>,
+    }</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The decline and error paths do not build a dict here.</strong> Both return <code>_empty_result(...)</code> (defined in Step 1): the decline calls <code>_empty_result()</code> in Step 1, and a network / API error calls <code>_empty_result(error=str(e))</code> in Step 2's <code>except</code>. Same five keys, with <code>answer=None</code> and <code>error</code> set only on the error path.</div>
 <pre><span class="com"># decline (Step 1) and error (Step 2) both go through:</span>
 <span class="kw">return</span> _empty_result(error=str(e))   <span class="com"># error=None for the plain decline</span></pre>
