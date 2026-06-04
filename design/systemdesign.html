@@ -1488,6 +1488,27 @@ p_pred = _fit_prophet(train, spec.country_holidays, 30)
 metrics[<span class="str">"prophet_mape"</span>] = _mape(holdout[<span class="str">"y"</span>].values, p_pred[<span class="str">"yhat"</span>].values)
 a_pred = _fit_autoarima(train, 30)
 metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout[<span class="str">"y"</span>].values, a_pred[<span class="str">"yhat"</span>].values)</pre>
+        <div class="step-desc" style="margin-top:8px;">The two fit helpers wrap the actual libraries and both return the <em>same</em> <code>(ds, yhat, yhat_lower, yhat_upper)</code> shape, so the rest of the agent treats them identically:</div>
+<pre><span class="kw">def</span> <span class="fn">_fit_prophet</span>(train_df, country_holidays, horizon):
+    m = Prophet()
+    <span class="kw">if</span> country_holidays:
+        m.add_country_holidays(country_name=country_holidays)   <span class="com"># e.g. "SE" holidays</span>
+    m.fit(train_df)                                             <span class="com"># learn trend + seasonality</span>
+    future = m.make_future_dataframe(periods=horizon, include_history=<span class="kw">False</span>)
+    fc = m.predict(future)                                      <span class="com"># project `horizon` days ahead</span>
+    <span class="kw">return</span> fc[[<span class="str">"ds"</span>, <span class="str">"yhat"</span>, <span class="str">"yhat_lower"</span>, <span class="str">"yhat_upper"</span>]]       <span class="com"># point + lower/upper band</span>
+
+<span class="kw">def</span> <span class="fn">_fit_autoarima</span>(train_df, horizon):
+    long_df = train_df.assign(unique_id=<span class="str">"series"</span>)              <span class="com"># statsforecast's long format</span>
+    sf = StatsForecast(models=[AutoARIMA(season_length=7)], freq=<span class="str">"D"</span>)   <span class="com"># 7 = weekly seasonality</span>
+    sf.fit(long_df)
+    fc = sf.predict(h=horizon, level=[95])                     <span class="com"># project + 95% interval</span>
+    <span class="kw">return</span> pd.DataFrame({                                      <span class="com"># rename to Prophet's shape</span>
+        <span class="str">"ds"</span>:         fc[<span class="str">"ds"</span>].values,
+        <span class="str">"yhat"</span>:       fc[<span class="str">"AutoARIMA"</span>].values,
+        <span class="str">"yhat_lower"</span>: fc[<span class="str">"AutoARIMA-lo-95"</span>].values,
+        <span class="str">"yhat_upper"</span>: fc[<span class="str">"AutoARIMA-hi-95"</span>].values,
+    })</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why MAPE specifically?</strong> MAPE is the Mean Absolute Percentage Error:</div>
 <pre>MAPE = mean(|actual − predicted| / |actual|) × 100</pre>
         <div class="step-desc" style="margin-top:8px;">It's <strong>scale-free</strong>: the percentage is comparable across very different magnitudes. So a Ladieswear forecast (high revenue) and a Sport forecast (lower revenue) can both be evaluated with the same metric. A reading of 12% means predictions average 12% off the truth, regardless of category. Each fit is wrapped in its own <code>try/except</code>, so if one model errors numerically, the other still produces a score.</div>
