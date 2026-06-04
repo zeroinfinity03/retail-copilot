@@ -1,0 +1,21 @@
+# DuckDB warehouse, volume-mounted at runtime, never baked in (~1.1 GB)
+data/db/
+
+# raw source CSVs, only needed to BUILD the warehouse, not to run it
+raw_data/
+
+# local virtualenv + Python caches (the image builds its own venv)
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# secrets, injected at runtime via --env-file, never baked into the image
+.env
+example.env
+
+# the Dockerfile itself + git noise
+Dockerfile
+.dockerignore
+.git/
