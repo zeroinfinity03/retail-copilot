@@ -1451,8 +1451,15 @@ result_df = con.execute(sql).fetchdf()</pre>
         <span class="kw">return</span> result</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The reshape helper</strong> <code>_rows_to_dataframe()</code> detects the date and value columns from the data itself (not column names) and returns a clean <code>ds</code> / <code>y</code> frame:</div>
 <pre><span class="kw">def</span> <span class="fn">_rows_to_dataframe</span>(sql_result: <span class="kw">dict</span>) -&gt; pd.DataFrame:
-    <span class="str">"""Pick the first date-parseable column as ds and the first numeric
-    column as y (from the data, not names); to_datetime + dropna + sort."""</span></pre>
+    df = pd.DataFrame(sql_result[<span class="str">"rows"</span>])
+    <span class="com"># find the date column and the value column (from the data, not names),</span>
+    <span class="com"># and rename them to "ds" and "y"</span>
+    out = df[[date_col, value_col]].rename(columns={date_col: <span class="str">"ds"</span>, value_col: <span class="str">"y"</span>})
+    <span class="com"># then clean it so the models can use it:</span>
+    out[<span class="str">"ds"</span>] = pd.to_datetime(out[<span class="str">"ds"</span>])   <span class="com"># "2020-01-01" text -> a real date</span>
+    out = out.dropna()                       <span class="com"># drop rows with missing values</span>
+    out = out.sort_values(<span class="str">"ds"</span>)              <span class="com"># sort by date, oldest first</span>
+    <span class="kw">return</span> out</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Concretely.</strong> The SQL agent hands over a dict, and the helper reshapes it into a 2-column <code>ds</code> / <code>y</code> frame. Input:</div>
 <pre>sql_result = {
     <span class="str">"columns"</span>: [<span class="str">"t_dat"</span>, <span class="str">"revenue"</span>],
