@@ -1453,6 +1453,18 @@ result_df = con.execute(sql).fetchdf()</pre>
 <pre><span class="kw">def</span> <span class="fn">_rows_to_dataframe</span>(sql_result: <span class="kw">dict</span>) -&gt; pd.DataFrame:
     <span class="str">"""Pick the first date-parseable column as ds and the first numeric
     column as y (from the data, not names); to_datetime + dropna + sort."""</span></pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>Concretely.</strong> The SQL agent hands over a dict, and the helper reshapes it into a 2-column <code>ds</code> / <code>y</code> frame. Input:</div>
+<pre>sql_result = {
+    <span class="str">"columns"</span>: [<span class="str">"t_dat"</span>, <span class="str">"revenue"</span>],
+    <span class="str">"rows"</span>: [
+        {<span class="str">"t_dat"</span>: <span class="str">"2020-01-01"</span>, <span class="str">"revenue"</span>: 1200},
+        {<span class="str">"t_dat"</span>: <span class="str">"2020-01-02"</span>, <span class="str">"revenue"</span>: 1500},
+    ],
+}</pre>
+        <div class="step-desc" style="margin-top:8px;">Prophet / SARIMA need exactly two columns, <code>ds</code> (date) and <code>y</code> (value). So <code>_rows_to_dataframe()</code> turns it into:</div>
+<pre>ds          y
+2020-01-01  1200
+2020-01-02  1500</pre>
       </div>
     </div>
 
