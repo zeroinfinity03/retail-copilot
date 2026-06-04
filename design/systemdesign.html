@@ -1213,6 +1213,12 @@ result_df = con.execute(sql).fetchdf()</pre>
   </div>
 
   <h3>Internal flow: step by step</h3>
+  <div class="step-desc" style="margin:0 0 14px;">All four steps below are the body of one function, <code>run(task)</code>. It runs top to bottom and returns the Output dict shown above (a plain <code>dict</code>, no Pydantic class). The helpers it calls (<code>make_web_query</code>, <code>_empty_result</code>) are shown where they are first used.</div>
+<pre><span class="kw">def</span> <span class="fn">run</span>(task):                       <span class="com"># returns the Output dict above</span>
+    <span class="com"># Step 1: extract a focused web query (or decline)</span>
+    <span class="com"># Step 2: run the web search on that query</span>
+    <span class="com"># Step 3: parse the response with model_dump()</span>
+    <span class="com"># Step 4: return the result dict to the supervisor</span></pre>
   <div class="flow-steps">
 
     <div class="flow-step">
