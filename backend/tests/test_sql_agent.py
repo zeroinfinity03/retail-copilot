@@ -58,6 +58,17 @@ def test_blocks_chained_second_statement():
     assert read_only_guard("SELECT 1; DROP TABLE customers") is not None
 
 
+def test_blocks_prefix_lookalike():
+    """A word that merely starts with SELECT (e.g. SELECTED) is not a real
+    SELECT statement: the first-token check rejects it."""
+    assert read_only_guard("SELECTED FROM x") is not None
+
+
+def test_blocks_empty_query():
+    assert read_only_guard("   ") is not None
+    assert read_only_guard(";") is not None
+
+
 # ============================================================
 # SQLOutput schema
 # ============================================================

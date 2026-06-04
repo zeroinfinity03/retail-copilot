@@ -3,7 +3,7 @@ SQL Agent — generates DuckDB SQL for retail analytics sub-tasks.
 
 Pipeline:
   1. LLM call: (system prompt + sub-task) -> structured JSON {sql, explanation}
-  2. Python: allowlist (only a single SELECT/WITH) + read-only DuckDB execution
+  2. Python: allowlist (only a single SELECT or WITH) + read-only DuckDB execution
   3. On SQL error: one retry, feeding the error message back to the LLM
   4. Return: {sql, explanation, columns, rows, row_count, error}
 
@@ -32,7 +32,7 @@ PROMPT_PATH = BACKEND_DIR / "prompts" / "sql_agent.txt"
 DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
 
 # Sandbox configuration
-# Allowlist (default-deny): only a single SELECT/WITH read query is permitted.
+# Allowlist (default-deny): only a single SELECT or WITH read query is permitted.
 # Everything else (DROP, DELETE, INSERT, UPDATE, ALTER, TRUNCATE, CREATE,
 # ATTACH, plus COPY, EXPORT, INSTALL, LOAD, PRAGMA, SET, ...) is rejected
 # before it reaches the engine.
@@ -71,17 +71,25 @@ def read_only_guard(sql: str) -> Optional[str]:
     CREATE/ATTACH) and side-effect statements (COPY/EXPORT/INSTALL/LOAD/
     PRAGMA/SET/...) up front. read_only=True is the connection-level backstop.
     """
-    # Drop a single trailing ';' and surrounding whitespace.
-    cleaned = sql.strip().rstrip(";").strip()
+    cleaned = sql.strip()
 
-    # A leftover ';' means a second statement was chained in (e.g. injection).
+    # Allow exactly one trailing ';' (a normal statement terminator).
+    if cleaned.endswith(";"):
+        cleaned = cleaned[:-1].strip()
+
+    if not cleaned:
+        return "empty query"
+
+    # Any remaining ';' means a second statement was chained in (injection).
     # (A ';' inside a string literal would also trip this, but the analytics
     #  queries here never put one there, so it is a safe trade-off.)
     if ";" in cleaned:
         return "only a single statement is allowed (no ';' chaining)"
 
-    # Must be a read query: SELECT or WITH (CTE). startswith accepts a tuple.
-    if not cleaned.upper().startswith(ALLOWED_STARTS):
+    # First word must be EXACTLY SELECT or WITH, not just a prefix like
+    # "SELECTED". cleaned is non-empty here, so the split is safe.
+    first_token = cleaned.split(None, 1)[0].upper()
+    if first_token not in ALLOWED_STARTS:
         return "only SELECT or WITH (read-only) queries are allowed"
 
     return None
@@ -115,13 +123,17 @@ def execute_sql(sql: str) -> dict:
     """Run SQL in a sandboxed read-only DuckDB connection.
 
     Layers of safety:
-      1. Allowlist (only a single SELECT/WITH read query passes; default-deny)
+      1. Allowlist (only a single SELECT or WITH read query passes; default-deny)
       2. read_only=True at connection level (engine-level backstop)
-      3. Row count cap on the returned data (MAX_ROWS_RETURNED)
+      3. Row count cap on the RETURNED data (MAX_ROWS_RETURNED)
 
-    Note: DuckDB lacks a built-in statement timeout. For v1 we rely on
-    the read-only mode + row cap. If long-query control becomes needed,
-    wrap execution in a thread + threading.Timer that calls con.interrupt().
+    Note: the row cap is applied AFTER fetchdf() materializes the full
+    result, so it bounds the RETURNED rows, not the scan (the exact row_count
+    is preserved, but a huge detail query still lands in memory first). The
+    prompt's LIMIT rule keeps results small. DuckDB also lacks a built-in
+    statement timeout; for v1 we rely on read-only mode + the row cap. If
+    long-query control is needed, wrap execution in a thread + threading.Timer
+    that calls con.interrupt().
     """
     violation = read_only_guard(sql)
     if violation:
