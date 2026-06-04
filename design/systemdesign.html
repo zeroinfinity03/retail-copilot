@@ -1110,8 +1110,14 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
 <pre><span class="com"># Step 1's generate_sql() returned a typed SQLOutput; capture it</span>
 llm_output = generate_sql(task)
 <span class="kw">if</span> llm_output.sql <span class="kw">is</span> <span class="kw">None</span>:
-    <span class="kw">return</span> {<span class="str">"sql"</span>: <span class="kw">None</span>, <span class="str">"explanation"</span>: llm_output.explanation,
-            <span class="str">"columns"</span>: [], <span class="str">"rows"</span>: [], <span class="str">"row_count"</span>: 0, <span class="str">"error"</span>: <span class="kw">None</span>}</pre>
+    <span class="kw">return</span> {
+        <span class="str">"sql"</span>:         <span class="kw">None</span>,
+        <span class="str">"explanation"</span>: llm_output.explanation,
+        <span class="str">"columns"</span>:     [],
+        <span class="str">"rows"</span>:        [],
+        <span class="str">"row_count"</span>:   0,
+        <span class="str">"error"</span>:       <span class="kw">None</span>,
+    }</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why this is graceful, not an error.</strong> Notice <code>error: None</code> in the return. The agent is signaling "I read the question, the warehouse genuinely doesn't have this data" rather than "something broke." The synthesizer reads <code>error: None</code> + empty rows + a non-empty <code>explanation</code> and produces a user-facing message like <em>"Inventory levels aren't tracked in this warehouse"</em> instead of a confusing failure message.</div>
       </div>
     </div>
