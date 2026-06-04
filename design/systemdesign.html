@@ -1220,10 +1220,7 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title">Extract a focused web query (or decline)</div>
         <div class="step-desc">A gateway LLM call reads the full question and returns one focused web-search query, or <code>null</code> when nothing needs the web (H&M internal data or a pure forecast). This is the same "parse the task into a focused sub-task" pattern the forecast agent uses. The prompt carries the agent's identity (H&M and its competitors) and the in-scope / out-of-scope boundary, so "competitors" resolves to real brands and internal-data questions decline. When <code>search_query</code> is null the agent returns an empty result immediately, with no web search call.</div>
-<pre><span class="kw">class</span> WebQuery(BaseModel):
-    search_query: Optional[<span class="kw">str</span>]   <span class="com"># focused web query, or None to decline</span>
-
-<span class="kw">def</span> <span class="fn">make_web_query</span>(task: <span class="kw">str</span>) -&gt; WebQuery:
+<pre><span class="kw">def</span> <span class="fn">make_web_query</span>(task: <span class="kw">str</span>) -&gt; WebQuery:
     response = client.chat.completions.parse(
         model=LLM_MODEL,          <span class="com"># via the llm.py provider gateway</span>
         messages=[
@@ -1237,6 +1234,9 @@ result_df = con.execute(sql).fetchdf()</pre>
 <span class="kw">def</span> <span class="fn">_empty_result</span>(error: Optional[<span class="kw">str</span>] = <span class="kw">None</span>) -&gt; <span class="kw">dict</span>:  <span class="com"># decline + error paths both return this exact shape</span>
     <span class="kw">return</span> {<span class="str">"answer"</span>: <span class="kw">None</span>, <span class="str">"citations"</span>: [], <span class="str">"search_queries_run"</span>: 0,
             <span class="str">"model"</span>: MODEL, <span class="str">"error"</span>: error}</pre>
+        <div class="step-desc" style="margin-top:8px;"><strong>The <code>WebQuery</code> schema</strong> (what the LLM must return):</div>
+<pre><span class="kw">class</span> WebQuery(BaseModel):
+    search_query: Optional[<span class="kw">str</span>]   <span class="com"># focused web query, or None to decline</span></pre>
 <pre><span class="com"># inside run fn:</span>
 <span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:
     spec = make_web_query(task)        <span class="com"># spec is a WebQuery object: spec.search_query is str | None</span>
