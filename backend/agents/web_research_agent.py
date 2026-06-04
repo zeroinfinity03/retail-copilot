@@ -158,6 +158,11 @@ def run(task: str) -> dict:
     data = response.model_dump()
     answer = data["choices"][0]["message"]["content"]
     citations = data.get("citations") or []
+    if not citations:
+        # Some Perplexity responses populate only `search_results` (a list of
+        # {title, url, ...}) and leave the top-level `citations` empty. Fall
+        # back to those URLs so the sources don't silently disappear.
+        citations = [r.get("url") for r in (data.get("search_results") or []) if r.get("url")]
     num_queries = data.get("usage", {}).get("num_search_queries", 0)
 
     # --- Step 4: Return result dict to supervisor ---
