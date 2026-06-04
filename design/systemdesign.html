@@ -1214,7 +1214,7 @@ result_df = con.execute(sql).fetchdf()</pre>
 
   <h3>Internal flow: step by step</h3>
   <div class="step-desc" style="margin:0 0 14px;">Here is the whole function exactly as it runs. <strong>Input:</strong> one argument <code>task</code> (the full user question). <strong>Output:</strong> the Output dict above (a plain <code>dict</code>, no Pydantic class). The four steps below zoom into each labelled part; the helpers <code>make_web_query</code> and <code>_empty_result</code> are defined in Step 1.</div>
-<pre class="run-overview"><span class="kw">def</span> <span class="fn">run</span>(task):
+<pre class="run-overview"><span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>) -&gt; <span class="kw">dict</span>:
     <span class="com"># Step 1: extract a focused web query (or decline)</span>
     spec = make_web_query(task)
     <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
@@ -1260,7 +1260,7 @@ result_df = con.execute(sql).fetchdf()</pre>
 <pre><span class="kw">class</span> WebQuery(BaseModel):
     search_query: Optional[<span class="kw">str</span>]   <span class="com"># focused web query, or None to decline</span>
 
-<span class="kw">def</span> <span class="fn">make_web_query</span>(task):
+<span class="kw">def</span> <span class="fn">make_web_query</span>(task: <span class="kw">str</span>) -&gt; WebQuery:
     response = client.chat.completions.parse(
         model=LLM_MODEL,          <span class="com"># via the llm.py provider gateway</span>
         messages=[
@@ -1271,7 +1271,7 @@ result_df = con.execute(sql).fetchdf()</pre>
     )
     <span class="kw">return</span> response.choices[0].message.parsed
 
-<span class="kw">def</span> <span class="fn">_empty_result</span>(error=<span class="kw">None</span>):           <span class="com"># decline + error paths both return this exact shape</span>
+<span class="kw">def</span> <span class="fn">_empty_result</span>(error: Optional[<span class="kw">str</span>] = <span class="kw">None</span>) -&gt; <span class="kw">dict</span>:  <span class="com"># decline + error paths both return this exact shape</span>
     <span class="kw">return</span> {<span class="str">"answer"</span>: <span class="kw">None</span>, <span class="str">"citations"</span>: [], <span class="str">"search_queries_run"</span>: 0,
             <span class="str">"model"</span>: MODEL, <span class="str">"error"</span>: error}
 
