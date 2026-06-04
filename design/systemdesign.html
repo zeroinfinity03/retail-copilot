@@ -1150,7 +1150,7 @@ result_df = con.execute(sql).fetchdf()</pre>
 <pre>exec_result = execute_sql(llm_output.sql)   <span class="com"># {columns, rows, row_count, error}</span>
 
 <span class="kw">if</span> exec_result[<span class="str">"error"</span>] <span class="kw">and</span> MAX_RETRIES &gt; 0:
-    retry = generate_sql(task, error_context=exec_result[<span class="str">"error"</span>])
+    retry = generate_sql(task, error_context=exec_result[<span class="str">"error"</span>])  <span class="com"># fresh SQLOutput (Pydantic object)</span>
     <span class="kw">if</span> retry.sql:
         exec_result = execute_sql(retry.sql)
         llm_output = retry</pre>
