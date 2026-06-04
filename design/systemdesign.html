@@ -689,7 +689,7 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="num">3</div>
       <div class="body">
         <div class="step-title">Supervisor initialises the shared <code>state</code> dict</div>
-        <div class="step-desc">This is the first action inside <code>supervisor_P.run()</code>: it allocates one slot per specialist, all starting as <code>None</code>. The dict is the shared bus the rest of the pipeline reads from and writes to.</div>
+        <div class="step-desc">Inside <code>run()</code> the planner runs first: once <code>make_plan(user_query)</code> returns a typed <code>Plan</code> (detailed in the next step), the supervisor initializes the shared <code>state</code> dict, one slot per specialist, all starting as <code>None</code>. The dict is the shared bus the rest of the pipeline reads from and writes to.</div>
 <pre><span class="kw">def</span> <span class="fn">run</span>(user_query):
     plan = make_plan(user_query)
     state = {
@@ -1122,7 +1122,7 @@ llm_output = generate_sql(task)
 
 <span class="com"># then, inside execute_sql:</span>
 violation = read_only_guard(sql)
-<span class="kw">if</span> violation: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: "</span>{violation}, ...}
+<span class="kw">if</span> violation: <span class="kw">return</span> {<span class="str">"error"</span>: <span class="str">f"Blocked: {violation}"</span>, ...}
 
 con = duckdb.connect(str(DB_PATH), read_only=<span class="kw">True</span>)
 result_df = con.execute(sql).fetchdf()</pre>
