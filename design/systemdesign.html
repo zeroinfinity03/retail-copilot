@@ -461,7 +461,7 @@
     color: #444;
     line-height: 1.55;
   }
-  .flow-step pre {
+  .flow-step pre, pre.run-overview {
     background: #1e2733;
     color: #e8eaed;
     border-radius: 4px;
@@ -472,10 +472,10 @@
     font-family: "SF Mono", Menlo, monospace;
     line-height: 1.55;
   }
-  .flow-step pre .kw  { color: #ff79c6; }
-  .flow-step pre .str { color: #f1fa8c; }
-  .flow-step pre .com { color: #6272a4; font-style: italic; }
-  .flow-step pre .fn  { color: #50fa7b; }
+  .flow-step pre .kw,  pre.run-overview .kw  { color: #ff79c6; }
+  .flow-step pre .str, pre.run-overview .str { color: #f1fa8c; }
+  .flow-step pre .com, pre.run-overview .com { color: #6272a4; font-style: italic; }
+  .flow-step pre .fn,  pre.run-overview .fn  { color: #50fa7b; }
 </style>
 </head>
 <body>
@@ -1214,7 +1214,7 @@ result_df = con.execute(sql).fetchdf()</pre>
 
   <h3>Internal flow: step by step</h3>
   <div class="step-desc" style="margin:0 0 14px;">Here is the whole function exactly as it runs. <strong>Input:</strong> one argument <code>task</code> (the full user question). <strong>Output:</strong> the Output dict above (a plain <code>dict</code>, no Pydantic class). The four steps below zoom into each labelled part; the helpers <code>make_web_query</code> and <code>_empty_result</code> are defined in Step 1.</div>
-<pre><span class="kw">def</span> <span class="fn">run</span>(task):
+<pre class="run-overview"><span class="kw">def</span> <span class="fn">run</span>(task):
     <span class="com"># Step 1: extract a focused web query (or decline)</span>
     spec = make_web_query(task)
     <span class="kw">if</span> <span class="kw">not</span> spec.search_query:
