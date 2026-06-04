@@ -749,11 +749,15 @@ parallel_jobs = {}
 runners = {<span class="str">"sql"</span>: run_sql, <span class="str">"web"</span>: run_web, <span class="str">"forecast"</span>: run_forecast}
 
 <span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
-    futures = {pool.submit(runners[a], task): a <span class="kw">for</span> a, task <span class="kw">in</span> parallel_jobs.items()}
-    <span class="com"># dict comprehension: start each agent on a thread; map the returned future -&gt; agent name</span>
-    <span class="kw">for</span> fut <span class="kw">in</span> as_completed(futures):
-        agent = futures[fut]
-        state[<span class="str">f"</span>{agent}_results<span class="str">"</span>] = fut.result()</pre>
+    job_to_agent = {}
+    <span class="kw">for</span> agent_name, task <span class="kw">in</span> parallel_jobs.items():
+        job = pool.submit(runners[agent_name], task)   <span class="com"># start the agent on a thread</span>
+        job_to_agent[job] = agent_name                 <span class="com"># remember which agent this job is</span>
+
+    <span class="kw">for</span> done_job <span class="kw">in</span> as_completed(job_to_agent):    <span class="com"># yields each job as it finishes</span>
+        agent_name = job_to_agent[done_job]
+        result = done_job.result()
+        state[<span class="str">f"</span>{agent_name}_results<span class="str">"</span>] = result</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why parallel matters: the time math.</strong> If these three agents ran one after another, the total wait would be the <em>sum</em> of all three:</div>
 <pre><span class="com"># Sequential (one after another)</span>
 t_code + t_research + t_forecast  ≈  3 + 5 + 7  =  <span class="str">15 seconds</span></pre>
