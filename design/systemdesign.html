@@ -709,12 +709,13 @@ The supervisor orchestrates; the rest do the actual work.
       <div class="body">
         <div class="step-title"><code>make_plan()</code>: the planner LLM call</div>
         <div class="step-desc">One structured-output call through the <code>llm.py</code> provider gateway. The supervisor system prompt is loaded from disk, the user query is appended, and the gateway's <code>structured()</code> helper forces the response into the typed <code>Plan</code> shape. The LLM cannot return free-form text, only a valid <code>Plan</code>.</div>
-<pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
-    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
-    response_format=Plan,
-)
-<span class="kw">return</span> response.choices[0].message.parsed   <span class="com"># typed Plan object</span></pre>
+<pre><span class="kw">def</span> make_plan(user_query):
+    response = client.chat.completions.parse(
+        model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
+        messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+        response_format=Plan,
+    )
+    <span class="kw">return</span> response.choices[0].message.parsed   <span class="com"># typed Plan object</span></pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The <code>Plan</code> schema</strong> (what the LLM must return):</div>
 <pre><span class="kw">class</span> PlanStep(BaseModel):
     agent: Literal[<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>, <span class="str">"chart"</span>]
@@ -1365,12 +1366,13 @@ num_queries = data.get(<span class="str">"usage"</span>, {}).get(<span class="st
       <div class="body">
         <div class="step-title"><code>make_forecast_spec()</code>: LLM parses the task into a typed <code>ForecastSpec</code></div>
         <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
-<pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
-    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
-    response_format=ForecastSpec,
-)
-<span class="kw">return</span> response.choices[0].message.parsed</pre>
+<pre><span class="kw">def</span> make_forecast_spec(task):
+    response = client.chat.completions.parse(
+        model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
+        messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+        response_format=ForecastSpec,
+    )
+    <span class="kw">return</span> response.choices[0].message.parsed</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The <code>ForecastSpec</code> schema</strong> (what the LLM must return):</div>
 <pre><span class="kw">class</span> ForecastSpec(BaseModel):
     sql_task:         <span class="kw">str</span>                                <span class="com"># brief for the SQL agent</span>
@@ -1634,11 +1636,16 @@ user_question: str            <span style="color:#777;"># the original NL query<
       <div class="body">
         <div class="step-title"><code>get_chart_spec()</code>: LLM picks the chart type and columns</div>
         <div class="step-desc">The agent sends the column list, 3 sample rows, and the user's original question to the LLM. Structured output returns a <code>ChartSpec</code>: <code>chart_type</code> (one of 12), the x / y / z column names, optional color or path columns, an <code>is_time_series</code> flag, plus a title and one-line caption.</div>
-<pre>response = client.chat.completions.parse(
-    model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
-    messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
-    response_format=ChartSpec,
-)</pre>
+<pre><span class="kw">def</span> get_chart_spec(columns, rows, user_question, error_context=None):
+    user_msg = build_user_message(columns, rows, user_question)
+    <span class="kw">if</span> error_context:           <span class="com"># on a retry, append the error so the LLM self-corrects</span>
+        user_msg += <span class="str">"\n\nPrevious spec failed — correct it:\n"</span> + error_context
+    response = client.chat.completions.parse(
+        model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
+        messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+        response_format=ChartSpec,
+    )
+    <span class="kw">return</span> response.choices[0].message.parsed</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>The <code>ChartSpec</code> schema</strong> (what the LLM must return):</div>
 <pre><span class="kw">class</span> ChartSpec(BaseModel):
     chart_type:     ChartType                  <span class="com"># one of the 12 types above</span>
