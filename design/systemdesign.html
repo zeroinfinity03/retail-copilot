@@ -746,17 +746,22 @@ parallel_jobs = {}
     <span class="kw">if</span> step.agent <span class="kw">in</span> (<span class="str">"sql"</span>, <span class="str">"web"</span>, <span class="str">"forecast"</span>):
         parallel_jobs[step.agent] = user_query   <span class="com"># each agent gets the full question</span>
 
-runners = {<span class="str">"sql"</span>: run_sql, <span class="str">"web"</span>: run_web, <span class="str">"forecast"</span>: run_forecast}
+agent_fn_name = {
+    <span class="str">"sql"</span>: run_sql,
+    <span class="str">"web"</span>: run_web,
+    <span class="str">"forecast"</span>: run_forecast,
+}
 
 <span class="kw">with</span> ThreadPoolExecutor(max_workers=<span class="kw">len</span>(parallel_jobs)) <span class="kw">as</span> pool:
-    job_to_agent = {}
-    <span class="kw">for</span> agent_name, task <span class="kw">in</span> parallel_jobs.items():
-        job = pool.submit(runners[agent_name], task)   <span class="com"># start the agent on a thread</span>
-        job_to_agent[job] = agent_name                 <span class="com"># remember which agent this job is</span>
+    future_to_agent_name = {}
 
-    <span class="kw">for</span> done_job <span class="kw">in</span> as_completed(job_to_agent):    <span class="com"># yields each job as it finishes</span>
-        agent_name = job_to_agent[done_job]
-        result = done_job.result()
+    <span class="kw">for</span> agent_name <span class="kw">in</span> parallel_jobs:
+        future = pool.submit(agent_fn_name[agent_name], user_query)
+        future_to_agent_name[future] = agent_name
+
+    <span class="kw">for</span> finished_future <span class="kw">in</span> as_completed(future_to_agent_name):
+        agent_name = future_to_agent_name[finished_future]
+        result = finished_future.result()
         state[<span class="str">f"</span>{agent_name}_results<span class="str">"</span>] = result</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why parallel matters: the time math.</strong> If these three agents ran one after another, the total wait would be the <em>sum</em> of all three:</div>
 <pre><span class="com"># Sequential (one after another)</span>
