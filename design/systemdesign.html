@@ -1447,7 +1447,7 @@ result_df = con.execute(sql).fetchdf()</pre>
     sql_out = run_sql(spec.sql_task)        <span class="com"># the SQL agent fetches the history</span>
     df = _rows_to_dataframe(sql_out)        <span class="com"># -> DataFrame(ds, y)</span>
     <span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:       <span class="com"># 90 days minimum</span>
-        result[<span class="str">"error"</span>] = <span class="str">f"Series too short ..."</span>
+        result[<span class="str">"error"</span>] = <span class="str">f"Series too short for forecasting ({len(df)} days, need &gt;= {MIN_HISTORY_DAYS})."</span>
         <span class="kw">return</span> result</pre>
       </div>
     </div>
