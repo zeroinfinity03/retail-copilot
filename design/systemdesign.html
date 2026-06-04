@@ -1372,10 +1372,14 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title"><code>make_forecast_spec()</code>: LLM parses the task into a typed <code>ForecastSpec</code></div>
         <div class="step-desc">A structured-output LLM call decides what historical series to fetch (<code>sql_task</code>), how far to project (<code>horizon_days</code>, capped at 180), granularity, holiday calendar (default Sweden), and a human-readable label. Free-form text is not allowed.</div>
-<pre><span class="kw">def</span> make_forecast_spec(task):
+<pre><span class="kw">def</span> <span class="fn">make_forecast_spec</span>(task: <span class="kw">str</span>) -&gt; ForecastSpec:
+    system_prompt = PROMPT_PATH.read_text(encoding=<span class="str">"utf-8"</span>)   <span class="com"># forecasting_agent.txt</span>
     response = client.chat.completions.parse(
-        model=LLM_MODEL,   <span class="com"># via the llm.py provider gateway</span>
-        messages=[{<span class="str">"role"</span>: <span class="str">"system"</span>, ...}, {<span class="str">"role"</span>: <span class="str">"user"</span>, ...}],
+        model=LLM_MODEL,          <span class="com"># via the llm.py provider gateway</span>
+        messages=[
+            {<span class="str">"role"</span>: <span class="str">"system"</span>, <span class="str">"content"</span>: system_prompt},
+            {<span class="str">"role"</span>: <span class="str">"user"</span>,   <span class="str">"content"</span>: task},
+        ],
         response_format=ForecastSpec,
     )
     <span class="kw">return</span> response.choices[0].message.parsed</pre>
@@ -1388,6 +1392,17 @@ result_df = con.execute(sql).fetchdf()</pre>
     series_label:     <span class="kw">str</span>                                <span class="com"># human-readable label</span>
     explanation:      <span class="kw">str</span>                                <span class="com"># one-sentence summary</span></pre>
         <div class="step-desc" style="margin-top:8px;">The <code>horizon_days</code> hard-cap at 180 lives in the schema itself (<code>le=180</code>). Beyond that, confidence bands explode on a 24-month series, so the agent refuses earlier rather than producing low-quality projections.</div>
+<pre><span class="com"># inside run fn:</span>
+<span class="kw">def</span> <span class="fn">run</span>(task: <span class="kw">str</span>, verbose: <span class="kw">bool</span> = <span class="kw">False</span>) -&gt; <span class="kw">dict</span>:
+    result = {...}                          <span class="com"># all keys pre-filled (see Output above)</span>
+    <span class="kw">try</span>:
+        spec = make_forecast_spec(task)     <span class="com"># ForecastSpec object</span>
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        result[<span class="str">"error"</span>] = <span class="str">f"Failed to parse forecast task: {e}"</span>
+        <span class="kw">return</span> result
+    result[<span class="str">"spec"</span>]         = spec.model_dump()
+    result[<span class="str">"horizon_days"</span>] = spec.horizon_days
+    result[<span class="str">"series_label"</span>] = spec.series_label</pre>
       </div>
     </div>
 
@@ -1414,11 +1429,12 @@ result_df = con.execute(sql).fetchdf()</pre>
             <text x="451" y="45" text-anchor="middle" font-size="13" font-weight="700" fill="#222">DuckDB</text>
           </svg>
         </div>
-<pre>sql_out = run_sql(spec.sql_task)
-df = _rows_to_dataframe(sql_out)
-<span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:   <span class="com"># 90 days minimum</span>
-    result[<span class="str">"error"</span>] = <span class="str">f"Series too short ..."</span>
-    <span class="kw">return</span> result</pre>
+<pre><span class="com"># inside run fn (continued):</span>
+    sql_out = run_sql(spec.sql_task)        <span class="com"># the SQL agent fetches the history</span>
+    df = _rows_to_dataframe(sql_out)        <span class="com"># -> DataFrame(ds, y)</span>
+    <span class="kw">if</span> <span class="kw">len</span>(df) &lt; MIN_HISTORY_DAYS:       <span class="com"># 90 days minimum</span>
+        result[<span class="str">"error"</span>] = <span class="str">f"Series too short ..."</span>
+        <span class="kw">return</span> result</pre>
       </div>
     </div>
 
@@ -1427,9 +1443,14 @@ df = _rows_to_dataframe(sql_out)
       <div class="body">
         <div class="step-title">Holdout score: Prophet and SARIMA on the last 30 days</div>
         <div class="step-desc">Both models fit on everything except the last 30 days, then predict the held-out 30 and report MAPE. The "winner" is tagged but both models continue forward. This score is for transparency, not selection.</div>
-<pre>train = df.iloc[:-30]; holdout = df.iloc[-30:]
-metrics[<span class="str">"prophet_mape"</span>] = _mape(holdout.y, fit_prophet(train, 30).yhat)
-metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(train, 30).yhat)</pre>
+<pre><span class="com"># inside run fn (continued):</span>
+    metrics = _score_on_holdout(df, spec.country_holidays)</pre>
+<pre><span class="com"># ...and inside _score_on_holdout():</span>
+train, holdout = df.iloc[:-30], df.iloc[-30:]
+p_pred = _fit_prophet(train, spec.country_holidays, 30)
+metrics[<span class="str">"prophet_mape"</span>] = _mape(holdout[<span class="str">"y"</span>].values, p_pred[<span class="str">"yhat"</span>].values)
+a_pred = _fit_autoarima(train, 30)
+metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout[<span class="str">"y"</span>].values, a_pred[<span class="str">"yhat"</span>].values)</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why MAPE specifically?</strong> MAPE is the Mean Absolute Percentage Error:</div>
 <pre>MAPE = mean(|actual − predicted| / |actual|) × 100</pre>
         <div class="step-desc" style="margin-top:8px;">It's <strong>scale-free</strong>: the percentage is comparable across very different magnitudes. So a Ladieswear forecast (high revenue) and a Sport forecast (lower revenue) can both be evaluated with the same metric. A reading of 12% means predictions average 12% off the truth, regardless of category. Each fit is wrapped in its own <code>try/except</code>, so if one model errors numerically, the other still produces a score.</div>
@@ -1452,12 +1473,13 @@ metrics[<span class="str">"sarima_mape"</span>]  = _mape(holdout.y, fit_sarima(t
       <div class="body">
         <div class="step-title">Compute ensemble, average of the two forecasts</div>
         <div class="step-desc">Per day: <code>ensemble_yhat = (prophet_yhat + sarima_yhat) / 2</code>. The confidence band is the union of the two bands (min of lower bounds, max of upper bounds), intentionally wider, reflecting model disagreement as uncertainty.</div>
-<pre>ensemble_fc = pd.DataFrame({
-    <span class="str">"ds"</span>:         prophet_fc[<span class="str">"ds"</span>],
-    <span class="str">"yhat"</span>:       (prophet_fc.yhat.values + sarima_fc.yhat.values) / 2,
-    <span class="str">"yhat_lower"</span>: np.minimum(prophet_fc.yhat_lower, sarima_fc.yhat_lower),
-    <span class="str">"yhat_upper"</span>: np.maximum(prophet_fc.yhat_upper, sarima_fc.yhat_upper),
-})</pre>
+<pre><span class="com"># inside run fn (continued):</span>
+    ensemble_fc = pd.DataFrame({
+        <span class="str">"ds"</span>:         prophet_fc[<span class="str">"ds"</span>],
+        <span class="str">"yhat"</span>:       (prophet_fc[<span class="str">"yhat"</span>].values + sarima_fc[<span class="str">"yhat"</span>].values) / 2,
+        <span class="str">"yhat_lower"</span>: np.minimum(prophet_fc[<span class="str">"yhat_lower"</span>].values, sarima_fc[<span class="str">"yhat_lower"</span>].values),
+        <span class="str">"yhat_upper"</span>: np.maximum(prophet_fc[<span class="str">"yhat_upper"</span>].values, sarima_fc[<span class="str">"yhat_upper"</span>].values),
+    })</pre>
       </div>
     </div>
 
