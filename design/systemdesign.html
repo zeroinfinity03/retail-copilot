@@ -1086,7 +1086,9 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
       <div class="body">
         <div class="step-title">If the LLM declines (<code>sql=None</code>) &rarr; early return</div>
         <div class="step-desc">When the question is out of scope (e.g., asking for inventory levels the warehouse doesn't have), the LLM is allowed to return <code>sql=None</code> with an <code>explanation</code>. The agent skips DuckDB entirely and returns an empty result dict so the synthesizer can phrase a graceful "data not available" reply.</div>
-<pre><span class="kw">if</span> llm_output.sql <span class="kw">is</span> <span class="kw">None</span>:
+<pre><span class="com"># Step 1's generate_sql() returned a typed SQLOutput; capture it</span>
+llm_output = generate_sql(task)
+<span class="kw">if</span> llm_output.sql <span class="kw">is</span> <span class="kw">None</span>:
     <span class="kw">return</span> {<span class="str">"sql"</span>: <span class="kw">None</span>, <span class="str">"explanation"</span>: llm_output.explanation,
             <span class="str">"columns"</span>: [], <span class="str">"rows"</span>: [], <span class="str">"row_count"</span>: 0, <span class="str">"error"</span>: <span class="kw">None</span>}</pre>
         <div class="step-desc" style="margin-top:8px;"><strong>Why this is graceful, not an error.</strong> Notice <code>error: None</code> in the return. The agent is signaling "I read the question, the warehouse genuinely doesn't have this data" rather than "something broke." The synthesizer reads <code>error: None</code> + empty rows + a non-empty <code>explanation</code> and produces a user-facing message like <em>"Inventory levels aren't tracked in this warehouse"</em> instead of a confusing failure message.</div>
@@ -1111,7 +1113,9 @@ result_df = con.execute(sql).fetchdf()</pre>
       <div class="body">
         <div class="step-title">One-shot retry on execution failure</div>
         <div class="step-desc">If DuckDB raises an exception (syntax error, missing column, type mismatch), the agent calls the LLM once more with the error message as feedback. The LLM gets a chance to self-correct. Maximum one retry; if it fails again or returns <code>sql=None</code>, the original error is preserved.</div>
-<pre><span class="kw">if</span> exec_result[<span class="str">"error"</span>] <span class="kw">and</span> MAX_RETRIES &gt; 0:
+<pre>exec_result = execute_sql(llm_output.sql)   <span class="com"># {columns, rows, row_count, error}</span>
+
+<span class="kw">if</span> exec_result[<span class="str">"error"</span>] <span class="kw">and</span> MAX_RETRIES &gt; 0:
     retry = generate_sql(task, error_context=exec_result[<span class="str">"error"</span>])
     <span class="kw">if</span> retry.sql:
         exec_result = execute_sql(retry.sql)
