@@ -11,10 +11,20 @@ Prereqs
   - DB present ho: backend/data/db/hm.duckdb  (~1.1 GB).
 
 ----------------------------------------------------------------
-What we use
+STEP 0 -- the Dockerfile (dockerize karne ka PEHLA step)
 ----------------------------------------------------------------
-  backend/Dockerfile      : multi-stage image recipe (no yml needed, single container).
-  backend/.dockerignore   : data/db, raw_data, .venv, .env exclude (image patli rahe).
+  Sabse pehla kaam: backend/ me ek TEXT file banao, naam exactly
+  "Dockerfile" (no extension), aur uske ANDAR build steps likho:
+
+      FROM <base image>   ->  install deps  ->  COPY code  ->  CMD start
+
+  (Ye file ke andar likhte, terminal me nahi. Terminal me sirf build/run.)
+
+  Yahan ye files ALREADY bani hui hain (naya banane ki zaroorat nahi):
+    backend/Dockerfile      : multi-stage image recipe (no yml needed, single container).
+    backend/.dockerignore   : data/db, raw_data, .venv, .env exclude (image patli rahe).
+
+  Already hai, to seedha STEP 1 (build) pe jao.
 
 ----------------------------------------------------------------
 STEP 1 -- build the image
