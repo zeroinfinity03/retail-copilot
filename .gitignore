@@ -55,6 +55,11 @@ design/*
 examples.txt
 
 # =========================
+# deployment/ folder — local-only runbooks (account id, bucket, IAM user, etc.)
+# =========================
+deployment/
+
+# =========================
 # Personal / job-application files — NEVER commit (repo is public)
 # =========================
 email.txt
