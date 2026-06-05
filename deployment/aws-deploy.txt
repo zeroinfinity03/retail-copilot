@@ -2,11 +2,24 @@
 HOST ON AWS  --  backend (Fargate) + frontend (S3 / CloudFront)
 ================================================================
 Everything below is AWS CLI / console. No deployment.py is needed.
-Fill in: <ACCT> = AWS account id, <REGION> = e.g. ap-south-1.
 
 Flow:
   browser -> CloudFront (static SPA) -> /api -> ALB -> ECS Fargate (backend)
   backend -> DuckDB (in image or S3), keys from Secrets Manager
+
+Actual values (this account):
+  account : 005696749126
+  region  : us-east-2 (Ohio)
+  bucket  : surya-retail-copilot-web   (frontend, private)
+
+Progress (keep updating):
+  [x] frontend built          -> frontend/dist/
+  [x] S3 bucket created       -> surya-retail-copilot-web (Block Public Access ON)
+  [x] AWS CLI installed       -> aws-cli/2.34.62
+  [ ] aws configure (IAM key) -> NEXT
+  [ ] upload dist/ to the bucket
+  [ ] CloudFront (OAC) -> HTTPS URL
+  [ ] backend: ECR + Fargate
 
 
 Decide first: the DB (~1.1 GB)
@@ -54,9 +67,9 @@ Decide first: the DB (~1.1 GB)
 
 
 4. Host the frontend on S3 + CloudFront (free tier)
-   cd frontend && npm run build            # -> dist/
-   aws s3 mb s3://<web-bucket>             # private bucket, served via CloudFront
-   aws s3 sync dist/ s3://<web-bucket>/
+   cd frontend && npm run build            # -> dist/   (DONE)
+   # bucket already created: surya-retail-copilot-web (us-east-2, private)
+   aws s3 sync dist/ s3://surya-retail-copilot-web/   # upload the build
 
    CloudFront:
      - origin 1: the S3 bucket (OAC) for the SPA
