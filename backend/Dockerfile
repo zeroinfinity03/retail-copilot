@@ -15,7 +15,7 @@
 #   docker build -t retail-copilot-api .
 #   docker run --rm -p 8000:8000 \
 #     --env-file .env \
-#     -v "$PWD/data/db:/app/data/db" \
+#     -v "$PWD/data/curated:/app/data/curated" \
 #     retail-copilot-api
 #
 # (Build context is this backend/ directory.)

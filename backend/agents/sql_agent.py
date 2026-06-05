@@ -29,7 +29,7 @@ from agents.llm import structured
 
 BACKEND_DIR = Path(__file__).parent.parent
 PROMPT_PATH = BACKEND_DIR / "prompts" / "sql_agent.txt"
-DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
+DB_PATH = BACKEND_DIR / "data" / "curated" / "hm.duckdb"
 
 # Sandbox configuration
 # Allowlist (default-deny): only a single SELECT or WITH read query is permitted.

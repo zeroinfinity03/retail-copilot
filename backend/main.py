@@ -20,7 +20,7 @@ Run:
   uv run fastapi dev main.py
 
 If the DuckDB warehouse doesn't exist yet, the server auto-builds it
-from CSVs in backend/raw_data/ on first startup (~2 min, one-time).
+from CSVs in backend/data/raw/ on first startup (~2 min, one-time).
 
 Frontend (Vite) proxies /api → http://localhost:8000.
 """
@@ -49,7 +49,7 @@ from agents.supervisor_P import run as run_pipeline
 from agents.synthesizer_agent import run_stream as run_synthesizer_stream
 
 
-DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
+DB_PATH = BACKEND_DIR / "data" / "curated" / "hm.duckdb"
 LOAD_SCRIPT = BACKEND_DIR / "scripts" / "load_data.py"
 
 
@@ -58,11 +58,11 @@ async def lifespan(app: FastAPI):
     """One-time DB build on first startup if the warehouse is missing."""
     if not DB_PATH.exists():
         print(f"DuckDB warehouse not found at {DB_PATH}")
-        print(f"→ Building it from CSVs in backend/raw_data/ (this takes ~2 min, one-time)\n")
+        print(f"→ Building it from CSVs in backend/data/raw/ (this takes ~2 min, one-time)\n")
         result = subprocess.run([sys.executable, str(LOAD_SCRIPT)], cwd=str(BACKEND_DIR))
         if result.returncode != 0:
             print(
-                "\nDB build failed. Make sure the H&M CSVs are in backend/raw_data/:\n"
+                "\nDB build failed. Make sure the H&M CSVs are in backend/data/raw/:\n"
                 "   articles.csv, customers.csv, transactions_train.csv"
             )
             raise SystemExit(1)
@@ -294,3 +294,6 @@ async def chat(req: ChatRequest):
 # the full conversation as context and can resolve references against
 # previous turns. Closing/refreshing the page clears the memory.
 # ============================================================
+
+
+

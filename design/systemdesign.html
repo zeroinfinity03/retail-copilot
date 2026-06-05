@@ -873,7 +873,7 @@ state[<span class="str">"final_report"</span>] = synth_out[<span class="str">"fi
   <h3>The warehouse it queries</h3>
   <p style="color:#444; font-size:14px; line-height:1.7; margin: 10px 0 16px 0;">
     The warehouse is a single <strong>DuckDB</strong> file on local disk
-    (<code>backend/data/db/hm.duckdb</code>). DuckDB is the open-source,
+    (<code>backend/data/curated/hm.duckdb</code>). DuckDB is the open-source,
     embedded, columnar OLAP engine, the local equivalent of
     <strong>BigQuery</strong>, <strong>Snowflake</strong>, or
     <strong>Redshift</strong>. It speaks standard SQL, runs millions of rows
@@ -1982,7 +1982,7 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
   infra. It ships as a Python package (<code>pip install langgraph-checkpoint-sqlite</code>)
   that writes to whatever file path you give it. On deployment, the
   <code>checkpoints.db</code> file lives alongside <code>hm.duckdb</code> in
-  <code>backend/data/db/</code>, same disk, same backup story, zero new
+  <code>backend/data/curated/</code>, same disk, same backup story, zero new
   moving parts.
 </p>
 
@@ -2116,8 +2116,8 @@ CHECKPOINT_DB = BACKEND_DIR / <span class="str">"data"</span> / <span class="str
       <div class="step-title">Build the DuckDB warehouse once, store the file in S3</div>
       <div class="step-desc">The warehouse is a <strong>build artifact, not a request-time concern</strong>. Run <code>load_data.py</code> once over the ~31M rows (~2&nbsp;min); it produces a single <code>hm.duckdb</code> file, which you upload to S3. In production the container just downloads it on startup. It never rebuilds. (Locally, <code>main.py</code>&rsquo;s <code>lifespan</code> hook auto-builds it when missing; that&rsquo;s a dev convenience you lean on only off-cloud.) Re-run this step only when the source data refreshes.</div>
 <pre><span class="com"># one-time, run locally or as a CodeBuild / one-off ECS task</span>
-uv run python scripts/load_data.py          <span class="com"># builds backend/data/db/hm.duckdb</span>
-aws s3 cp backend/data/db/hm.duckdb <span class="str">s3://retail-copilot-data/warehouse/</span></pre>
+uv run python scripts/load_data.py          <span class="com"># builds backend/data/curated/hm.duckdb</span>
+aws s3 cp backend/data/curated/hm.duckdb <span class="str">s3://retail-copilot-data/warehouse/</span></pre>
     </div>
   </div>
 

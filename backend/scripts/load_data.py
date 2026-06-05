@@ -1,20 +1,20 @@
 """
 Load H&M CSVs into a DuckDB database.
 
-Expects 3 files in backend/raw_data/:
+Expects 3 files in backend/data/raw/:
   - articles.csv
   - customers.csv
   - transactions_train.csv
 
-Creates: backend/data/db/hm.duckdb with 3 tables (articles, customers, transactions).
+Creates: backend/data/curated/hm.duckdb with 3 tables (articles, customers, transactions).
 """
 
 from pathlib import Path
 import duckdb
 
 BACKEND_DIR = Path(__file__).parent.parent      # backend/
-CSV_DIR = BACKEND_DIR / "raw_data"
-DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
+CSV_DIR = BACKEND_DIR / "data" / "raw"
+DB_PATH = BACKEND_DIR / "data" / "curated" / "hm.duckdb"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 EXPECTED_FILES = {
@@ -27,7 +27,7 @@ EXPECTED_FILES = {
 def check_files() -> None:
     missing = [name for name, path in EXPECTED_FILES.items() if not path.exists()]
     if missing:
-        print("Missing files in backend/raw_data/:")
+        print("Missing files in backend/data/raw/:")
         for name in missing:
             print(f"   - {EXPECTED_FILES[name].name}")
         print("\nPlease download from Kaggle and place them here:")

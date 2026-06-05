@@ -1,8 +1,10 @@
-# DuckDB warehouse, volume-mounted at runtime, never baked in (~1.1 GB)
-data/db/
+# DuckDB warehouse (~1.1 GB).
+# DEMO (Option A): DB is BAKED into the image, so this line stays COMMENTED OUT.
+# PROD (Option B): un-comment the line below to exclude it and download from S3 on startup instead.
+# data/curated/
 
 # raw source CSVs, only needed to BUILD the warehouse, not to run it
-raw_data/
+data/raw/
 
 # local virtualenv + Python caches (the image builds its own venv)
 .venv/

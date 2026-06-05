@@ -8,7 +8,7 @@ Skipped by default (marked `slow`). Run explicitly with:
 
 Requires:
   - backend/.env with OPENAI_API_KEY and PERPLEXITY_API_KEY
-  - backend/data/db/hm.duckdb (built once via `uv run python scripts/load_data.py`)
+  - backend/data/curated/hm.duckdb (built once via `uv run python scripts/load_data.py`)
 """
 
 import os
@@ -19,7 +19,7 @@ import pytest
 from agents.supervisor_P import run as run_pipeline
 
 BACKEND_DIR = Path(__file__).parent.parent
-DB_PATH = BACKEND_DIR / "data" / "db" / "hm.duckdb"
+DB_PATH = BACKEND_DIR / "data" / "curated" / "hm.duckdb"
 
 
 pytestmark = pytest.mark.skipif(

@@ -41,8 +41,8 @@ project/
 │   │   └── conftest.py
 │   ├── scripts/
 │   │   └── load_data.py             One-time DuckDB warehouse build
-│   ├── data/db/                     DuckDB warehouse (gitignored, built locally)
-│   ├── raw_data/                    H&M CSVs (gitignored, downloaded from Kaggle)
+│   ├── data/curated/                DuckDB warehouse (gitignored, built locally)
+│   ├── data/raw/                    H&M CSVs (gitignored, downloaded from Kaggle)
 │   ├── main.py                      FastAPI server + /api/chat endpoint
 │   ├── example.env                  Template for API keys
 │   └── pyproject.toml
@@ -102,16 +102,16 @@ LLM_PROVIDER = "openai"      # or "deepseek"
 uv sync
 ```
 
-**4. Download the dataset and place the CSVs in `backend/raw_data/`**
+**4. Download the dataset and place the CSVs in `backend/data/raw/`**
 
 - **Dataset:** H&M Personalized Fashion Recommendations
 - **Download from:** <https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations/data>
-- **Place into:** `backend/raw_data/`  *(create the folder if it doesn't exist)*
+- **Place into:** `backend/data/raw/`  *(create the folder if it doesn't exist)*
 
-After unzipping, `backend/raw_data/` should contain these three files:
+After unzipping, `backend/data/raw/` should contain these three files:
 
 ```
-backend/raw_data/
+backend/data/raw/
 ├── articles.csv
 ├── customers.csv
 └── transactions_train.csv
@@ -137,7 +137,7 @@ cd backend
 uv run fastapi dev main.py
 ```
 
-The very first time, this also builds the local DuckDB warehouse from the CSVs in `backend/raw_data/` (~2 min, one-time). Every subsequent start skips that and boots in seconds.
+The very first time, this also builds the local DuckDB warehouse from the CSVs in `backend/data/raw/` (~2 min, one-time). Every subsequent start skips that and boots in seconds.
 
 **Terminal 2 — frontend (Vite on port 5173):**
 
