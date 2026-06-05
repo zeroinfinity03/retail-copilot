@@ -1,0 +1,90 @@
+================================================================
+HOST ON AWS  --  backend (Fargate) + frontend (S3/CloudFront)
+================================================================
+Sab AWS CLI / console se. Koi deployment.py nahi.
+(Fill in: <ACCT> = AWS account id, <REGION> = e.g. ap-south-1.)
+
+Architecture:
+  browser -> CloudFront (static SPA) -> /api -> ALB -> ECS Fargate (backend)
+  backend -> DuckDB (in image OR S3) , DeepSeek + Perplexity keys (Secrets Manager)
+
+----------------------------------------------------------------
+DECIDE FIRST -- the DB (1.1 GB)
+----------------------------------------------------------------
+  Option A (DEMO, simplest): DB ko image me bake karo.
+     - backend/.dockerignore me se  "data/db/"  line hatado
+     - rebuild -> image ~2.9 GB, self-contained, no S3, no boto3.
+  Option B (PROD, clean): DB S3 me, startup pe download.
+     - aws s3 cp backend/data/db/hm.duckdb s3://<bucket>/warehouse/
+     - main.py lifespan me ~5 line boto3 add: agar DB missing -> s3 download.
+     - image patli rehti, par S3 + IAM + thoda code chahiye.
+  Demo ke liye -> Option A.
+
+----------------------------------------------------------------
+STEP 1 -- keys -> Secrets Manager  (NEVER in image/git)
+----------------------------------------------------------------
+  aws secretsmanager create-secret --name retail/keys \
+    --secret-string '{"DEEPSEEK_API_KEY":"sk-...","PERPLEXITY_API_KEY":"pplx-..."}'
+
+----------------------------------------------------------------
+STEP 2 -- push image to ECR (AWS docker registry)
+----------------------------------------------------------------
+  aws ecr create-repository --repository-name retail-copilot-api
+
+  aws ecr get-login-password --region <REGION> | \
+    docker login --username AWS --password-stdin <ACCT>.dkr.ecr.<REGION>.amazonaws.com
+
+  # (Option A: rebuild with DB baked first)
+  cd backend && docker build -t retail-copilot-api .
+
+  docker tag  retail-copilot-api:latest \
+    <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+  docker push <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+
+----------------------------------------------------------------
+STEP 3 -- ECS Fargate service (console easiest first time)
+----------------------------------------------------------------
+  Task definition:
+    - image       : <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+    - cpu/mem     : 1 vCPU / 2 GB (Prophet CPU-bound; start small, autoscale on CPU)
+    - port        : 8000
+    - secrets     : retail/keys -> env vars DEEPSEEK_API_KEY, PERPLEXITY_API_KEY
+    - IAM role    : ecr pull, secretsmanager:GetSecretValue
+                    (+ s3:GetObject only if Option B)
+  Service:
+    - behind an Application Load Balancer (ALB), HTTPS via ACM cert
+    - health check path : /health
+    - ALB idle timeout  : 120-300s  (SSE streaming run beech me na kate)
+
+  Cost note: Fargate ka koi free tier nahi (~$9-10/mo if 24/7).
+  Demo: task ko sirf demo-window me up rakho, baad me stop.
+
+----------------------------------------------------------------
+STEP 4 -- frontend -> S3 + CloudFront  (free tier)
+----------------------------------------------------------------
+  cd frontend && npm run build           # -> dist/
+  aws s3 mb s3://<web-bucket>            # bucket (no public access; via CloudFront)
+  aws s3 sync dist/ s3://<web-bucket>/
+
+  CloudFront:
+    - origin 1: S3 bucket (OAC) for the SPA
+    - origin 2: ALB for /api/*   -> SAME domain => no CORS, matches Vite /api proxy
+  Cost: CloudFront "Always Free" = 1 TB/mo + 10M req. Demo me $0.
+
+  (Alternative: frontend Cloudflare Pages pe, free + simplest, par alag domain ->
+   backend pe ek CORS rule add karna padega.)
+
+----------------------------------------------------------------
+STEP 5 (optional) -- CI/CD
+----------------------------------------------------------------
+  Backend  push: docker build+push -> ECR ; aws ecs update-service --force-new-deployment
+  Frontend push: Cloudflare Pages auto-deploy, OR s3 sync + CloudFront invalidate.
+
+----------------------------------------------------------------
+What we deliberately SKIP (and why) -- see design/deployment.md
+----------------------------------------------------------------
+  Bedrock      : extra per-token AWS cost; existing DeepSeek/Perplexity keys
+                 already paid. Use only if going AWS-native (no keys, IAM auth).
+  SageMaker    : Prophet/SARIMA are in-process second-long fits, no endpoint needed.
+  RDS/Redshift : data is a read-only single file; embedded DuckDB is right.
+  Lambda(app)  : streaming + heavy deps + long requests fight Lambda.
