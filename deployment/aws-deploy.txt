@@ -1,90 +1,82 @@
 ================================================================
-HOST ON AWS  --  backend (Fargate) + frontend (S3/CloudFront)
+HOST ON AWS  --  backend (Fargate) + frontend (S3 / CloudFront)
 ================================================================
-Sab AWS CLI / console se. Koi deployment.py nahi.
-(Fill in: <ACCT> = AWS account id, <REGION> = e.g. ap-south-1.)
+Everything below is AWS CLI / console. No deployment.py is needed.
+Fill in: <ACCT> = AWS account id, <REGION> = e.g. ap-south-1.
 
-Architecture:
+Flow:
   browser -> CloudFront (static SPA) -> /api -> ALB -> ECS Fargate (backend)
-  backend -> DuckDB (in image OR S3) , DeepSeek + Perplexity keys (Secrets Manager)
+  backend -> DuckDB (in image or S3), keys from Secrets Manager
 
-----------------------------------------------------------------
-DECIDE FIRST -- the DB (1.1 GB)
-----------------------------------------------------------------
-  Option A (DEMO, simplest): DB ko image me bake karo.
-     - backend/.dockerignore me se  "data/db/"  line hatado
+
+Decide first: the DB (~1.1 GB)
+  Option A (demo, simplest): bake the DB into the image.
+     - remove the "data/db/" line from backend/.dockerignore
      - rebuild -> image ~2.9 GB, self-contained, no S3, no boto3.
-  Option B (PROD, clean): DB S3 me, startup pe download.
+  Option B (prod, clean): keep the DB in S3, download on startup.
      - aws s3 cp backend/data/db/hm.duckdb s3://<bucket>/warehouse/
-     - main.py lifespan me ~5 line boto3 add: agar DB missing -> s3 download.
-     - image patli rehti, par S3 + IAM + thoda code chahiye.
-  Demo ke liye -> Option A.
+     - add ~5 lines of boto3 in main.py lifespan to download if missing.
+  For the demo -> Option A.
 
-----------------------------------------------------------------
-STEP 1 -- keys -> Secrets Manager  (NEVER in image/git)
-----------------------------------------------------------------
-  aws secretsmanager create-secret --name retail/keys \
-    --secret-string '{"DEEPSEEK_API_KEY":"sk-...","PERPLEXITY_API_KEY":"pplx-..."}'
 
-----------------------------------------------------------------
-STEP 2 -- push image to ECR (AWS docker registry)
-----------------------------------------------------------------
-  aws ecr create-repository --repository-name retail-copilot-api
+1. Put the keys in Secrets Manager (never in image / git)
+   aws secretsmanager create-secret --name retail/keys \
+     --secret-string '{"DEEPSEEK_API_KEY":"sk-...","PERPLEXITY_API_KEY":"pplx-..."}'
 
-  aws ecr get-login-password --region <REGION> | \
-    docker login --username AWS --password-stdin <ACCT>.dkr.ecr.<REGION>.amazonaws.com
 
-  # (Option A: rebuild with DB baked first)
-  cd backend && docker build -t retail-copilot-api .
+2. Push the image to ECR (AWS docker registry)
+   aws ecr create-repository --repository-name retail-copilot-api
 
-  docker tag  retail-copilot-api:latest \
-    <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
-  docker push <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+   aws ecr get-login-password --region <REGION> | \
+     docker login --username AWS --password-stdin <ACCT>.dkr.ecr.<REGION>.amazonaws.com
 
-----------------------------------------------------------------
-STEP 3 -- ECS Fargate service (console easiest first time)
-----------------------------------------------------------------
-  Task definition:
-    - image       : <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
-    - cpu/mem     : 1 vCPU / 2 GB (Prophet CPU-bound; start small, autoscale on CPU)
-    - port        : 8000
-    - secrets     : retail/keys -> env vars DEEPSEEK_API_KEY, PERPLEXITY_API_KEY
-    - IAM role    : ecr pull, secretsmanager:GetSecretValue
-                    (+ s3:GetObject only if Option B)
-  Service:
-    - behind an Application Load Balancer (ALB), HTTPS via ACM cert
-    - health check path : /health
-    - ALB idle timeout  : 120-300s  (SSE streaming run beech me na kate)
+   cd backend && docker build -t retail-copilot-api .          # (Option A: DB baked)
+   docker tag  retail-copilot-api:latest \
+     <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+   docker push <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
 
-  Cost note: Fargate ka koi free tier nahi (~$9-10/mo if 24/7).
-  Demo: task ko sirf demo-window me up rakho, baad me stop.
 
-----------------------------------------------------------------
-STEP 4 -- frontend -> S3 + CloudFront  (free tier)
-----------------------------------------------------------------
-  cd frontend && npm run build           # -> dist/
-  aws s3 mb s3://<web-bucket>            # bucket (no public access; via CloudFront)
-  aws s3 sync dist/ s3://<web-bucket>/
+3. Create the ECS Fargate service (console is easiest the first time)
+   Task definition:
+     - image    : <ACCT>.dkr.ecr.<REGION>.amazonaws.com/retail-copilot-api:latest
+     - cpu/mem  : 1 vCPU / 2 GB (Prophet is CPU-bound; start small, autoscale on CPU)
+     - port     : 8000
+     - secrets  : retail/keys -> env vars DEEPSEEK_API_KEY, PERPLEXITY_API_KEY
+     - IAM role : ecr pull, secretsmanager:GetSecretValue
+                  (+ s3:GetObject only for Option B)
+   Service:
+     - behind an Application Load Balancer (ALB), HTTPS via an ACM cert
+     - health check path : /health
+     - ALB idle timeout  : 120-300s (so a streaming SSE run is not cut off)
 
-  CloudFront:
-    - origin 1: S3 bucket (OAC) for the SPA
-    - origin 2: ALB for /api/*   -> SAME domain => no CORS, matches Vite /api proxy
-  Cost: CloudFront "Always Free" = 1 TB/mo + 10M req. Demo me $0.
+   Cost: Fargate has no free tier (~$9-10/mo if 24/7). For a demo, start the
+   task only during the demo and stop it after.
 
-  (Alternative: frontend Cloudflare Pages pe, free + simplest, par alag domain ->
-   backend pe ek CORS rule add karna padega.)
 
-----------------------------------------------------------------
-STEP 5 (optional) -- CI/CD
-----------------------------------------------------------------
-  Backend  push: docker build+push -> ECR ; aws ecs update-service --force-new-deployment
-  Frontend push: Cloudflare Pages auto-deploy, OR s3 sync + CloudFront invalidate.
+4. Host the frontend on S3 + CloudFront (free tier)
+   cd frontend && npm run build            # -> dist/
+   aws s3 mb s3://<web-bucket>             # private bucket, served via CloudFront
+   aws s3 sync dist/ s3://<web-bucket>/
 
-----------------------------------------------------------------
-What we deliberately SKIP (and why) -- see design/deployment.md
-----------------------------------------------------------------
-  Bedrock      : extra per-token AWS cost; existing DeepSeek/Perplexity keys
-                 already paid. Use only if going AWS-native (no keys, IAM auth).
-  SageMaker    : Prophet/SARIMA are in-process second-long fits, no endpoint needed.
-  RDS/Redshift : data is a read-only single file; embedded DuckDB is right.
-  Lambda(app)  : streaming + heavy deps + long requests fight Lambda.
+   CloudFront:
+     - origin 1: the S3 bucket (OAC) for the SPA
+     - origin 2: the ALB for /api/*   -> same domain, so no CORS, matches the
+                 frontend's /api proxy exactly
+   Cost: CloudFront "Always Free" = 1 TB/mo + 10M requests. Demo = $0.
+
+   (Alternative: host the frontend on Cloudflare Pages, free + simplest, but it
+    is a different domain so you add one CORS rule on the backend.)
+
+
+5. (optional) CI/CD
+   Backend  on push: docker build+push -> ECR, then
+                     aws ecs update-service --force-new-deployment
+   Frontend on push: Cloudflare Pages auto-deploys, or s3 sync + CloudFront invalidate.
+
+
+What we deliberately skip (and why)  --  full rationale in design/deployment.md
+   Bedrock      : extra per-token AWS cost; the DeepSeek/Perplexity keys are
+                  already paid for. Use only when going AWS-native (IAM, no keys).
+   SageMaker    : Prophet/SARIMA are in-process, second-long fits; no endpoint needed.
+   RDS/Redshift : the data is a read-only single file; embedded DuckDB is right.
+   Lambda (app) : streaming + heavy deps + long requests fight Lambda.
