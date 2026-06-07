@@ -32,7 +32,7 @@ RUN apt-get update \
 RUN pip install --no-cache-dir uv
 
 # Copy only the lockfiles first so this (slow) layer is cached unless deps change.
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 # ---- Stage 2: clean runtime ----
