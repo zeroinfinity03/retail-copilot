@@ -9,14 +9,18 @@
 #   - Stage 2 (runtime): a clean slim image with only the prebuilt venv + the
 #                        app source. No compiler ships in the final image.
 #
-# The DuckDB warehouse (~1.1 GB) is deliberately NOT baked in. It is excluded
-# via .dockerignore and volume-mounted at runtime:
+# The DuckDB warehouse (~1.1 GB): whether it ships inside the image is
+# controlled by the data/curated/ line in .dockerignore.
+#   - Deployed demo (Option A): that line stays COMMENTED OUT, so the DB is
+#     baked in and the image is self-contained (this is what runs on AWS).
+#   - Local dev (Option B): un-comment it to exclude the DB, then volume-mount
+#     it at runtime:
 #
-#   docker build -t retail-copilot-api .
-#   docker run --rm -p 8000:8000 \
-#     --env-file .env \
-#     -v "$PWD/data/curated:/app/data/curated" \
-#     retail-copilot-api
+#       docker build -t retail-copilot-api .
+#       docker run --rm -p 8000:8000 \
+#         --env-file .env \
+#         -v "$PWD/data/curated:/app/data/curated" \
+#         retail-copilot-api
 #
 # (Build context is this backend/ directory.)
 
